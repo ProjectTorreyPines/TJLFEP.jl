@@ -4,7 +4,7 @@
 #using .TJLFEP: convert_input
 #using MPI
 
-function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_wf_file::String, l_wavefunction_out::Int, inputTJLF::InputTJLFEP, printout::Bool = true) #, factor_in::Int64, kyhat_in::Int64, width_in::Int64)
+function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_wf_file::String, l_wavefunction_out::Int, inputTJLF::InputTJLF{Float64}, printout::Bool = true) #, factor_in::Int64, kyhat_in::Int64, width_in::Int64)
 
     # Temp Defs:
     
@@ -77,7 +77,10 @@ function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_w
     #println("inputTJLF: ")
     #println(typeof(inputTJLF))
 
-    convInput = convert_input(inputTJLFEP, inputTJLFEP.NS, inputTJLFEP.NKY)
+    ### NOW THAT WE BRINGING IN TJLF I DONT THINK WE NEED THE CONV / REVERSE INPUT
+    #convInput = convert_input(inputTJLFEP, inputTJLFEP.NS, inputTJLFEP.NKY)
+    
+    
     #println("convInput: ")
     #println(typeof(convInput))
 
@@ -123,7 +126,7 @@ function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_w
     #end
 
     # Run TJLF and return QLweight and eigenvalues:
-    gamma_out, freq_out, particle_QL_out, energy_QL_out, stress_par_QL_out, exchange_QL_out, field_weight_out, satParams, nmodes_out = TJLF.run(convInput)
+    gamma_out, freq_out, particle_QL_out, energy_QL_out, stress_par_QL_out, exchange_QL_out, field_weight_out, satParams, nmodes_out = TJLF.run(inputTJLF)
 
 
 
@@ -131,8 +134,8 @@ function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_w
     #println(typeof(field_weight_out))
     #println(typeof(satParams.y))
 
-
-    inputTJLF = revert_input(convInput, convInput.NS, convInput.NKY)
+###I DONT THINK WE NEED FOR FUSE, SINCE WE BROUGHT IN AND KEPT A TJLF object
+    #inputTJLF = revert_input(convInput, convInput.NS, convInput.NKY)
     
 
 
@@ -175,7 +178,7 @@ function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_w
     # This function was translated within TJLF so as to get the wavefunction.
     ms = 128
     max_plot = Int(18*ms/8+1)
-    wavefunction, angle, nplot, nmodes, nmodes_out = TJLF.get_wavefunction(convInput, satParams, field_weight_out, nmodes_out)
+    wavefunction, angle, nplot, nmodes, nmodes_out = TJLF.get_wavefunction(inputTJLF, satParams, field_weight_out, nmodes_out)
 
 
     inputsEP.LTEARING .= false

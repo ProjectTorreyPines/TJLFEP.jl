@@ -5,10 +5,10 @@ inputs: tglfepfilepath, mtglffilepath, exprofilepath
 
 inputs are used in the threads version of the TJLFEP code for a single run
 """
-import TJLF
 
+using TJLF
 
-function runTHD(inputTJLFEP::Vector{InputTJLF}, Options::Options, profile::profile, printout::Bool=false)
+function runTHD(inputTJLF::Vector{TJLF.InputTJLF}, Options::Options{Float64}, profile::profile{Float64}, printout::Bool=false)
 
 
     homedir = pwd()
@@ -500,7 +500,7 @@ checkInput(inputTJLF::InputTJLF)
 description:
 check that the InputTJLF struct is properly populated
 """
-function checkInput(inputTJLFEP::InputTJLFEP)
+function checkInput(inputTJLFEP::InputTJLF)
 field_names = fieldnames(InputTJLFEP)
 for field_name in field_names
     field_value = getfield(inputTJLFEP, field_name)
@@ -521,7 +521,7 @@ if !inputTJLFEP.FIND_EIGEN
 end
 end
 
-function checkInput(inputTJLFEPVector::Vector{InputTJLFEP})
+function checkInput(inputTJLFEPVector::Vector{InputTJLF})
 for inputTJLFEP in inputTJLFEPVector
     field_names = fieldnames(inputTJLFEP)
     for field_name in field_names

@@ -267,7 +267,7 @@ Outputs: InputTJLF struct ready for usage in running TJLF.
 #include("../tjlf-ep/TJLFEP.jl")
 #using .TJLFEP
 
-function TJLF_map(inputsEP::Options{Float64}, inputsPR::profile{Float64}, inputTJLF::InputTJLFEP)
+function TJLF_map(inputsEP::Options{Float64}, inputsPR::profile{Float64}, inputTJLF::InputTJLF{Float64})
     # Access the fields like this:
     # inputsOptions = inputsEP.Options
     # profile = inputsEP.profile   
