@@ -2,7 +2,7 @@ using MPI
 include("TJLFEP.jl")
 using .TJLFEP
 using .TJLFEP: convert_input
-include("../src/TJLF.jl")
+include(joinpath(@__DIR__, "../../TJLF/src/TJLF.jl"))
 using .TJLF
 
 using Plots

@@ -11,6 +11,8 @@ Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 TJLF = "12ecd31c-256b-4db5-a799-cd5afeb0bd7d"
+Arpack = "7d9fca2a-8960-54d3-9f78-7d1dccf2cb97"
+
 
 [compat]
 Dates = "1.11.0"
@@ -19,4 +21,4 @@ Plots = "1.40.9"
 Revise = "3.6.4"
 SparseArrays = "1.11.0"
 StaticArrays = "1.9.8"
-TJLF = "1.0.5"
+TJLF = "1"

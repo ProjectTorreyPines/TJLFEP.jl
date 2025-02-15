@@ -7,7 +7,7 @@ using Pkg
 using Plots
 Pkg.activate("..")
 include("TJLFEP.jl")
-include("../src/TJLF.jl")
+include(joinpath(@__DIR__, "../../TJLF/src/TJLF.jl"))
 using .TJLFEP
 using .TJLFEP: convert_input
 using .TJLFEP: revert_input

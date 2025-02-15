@@ -1,5 +1,4 @@
-
-mutable struct InputTJLF{T<:Real}
+mutable struct InputTJLFEP{T<:Real}
 
     UNITS::Union{String,Missing}
 
@@ -99,25 +98,30 @@ mutable struct InputTJLF{T<:Real}
 
     USE_TRANSPORT_MODEL::Union{Bool, Missing}#84
     
+    function InputTJLFEP()
+        return InputTJLFEP{Float64}()
+    end
+    function InputTJLFEP{T}() where {T<:Real}
+        new(
+            missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
+            missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
+            missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
+            missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
+            missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
+            missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
+            missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
+            missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
+            missing,missing,missing,missing)
+    end
     # Any needed constructions of InputTJLF will be put here:
     
     # One of the TJLF methods is for an InputTGLF struct, but that isn't
     # used at all to my knowledge in TJLF, so I will not replicate it for
     # now. I will be creating the blank method, though:
     
-    function InputTJLF{T}(ns::Int, nky::Int, dflt::Bool) where {T<:Real}
+    function InputTJLFEP{T}(ns::Int, nky::Int, dflt::Bool) where {T<:Real}
         if dflt
-            new("GYRO",
-            false,false,true,true,false,missing,true,false,true,false,
-            0,2,2,21,4,4,32,12,0,2,0,-1,
-            fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),
-            fill(NaN,(nky)),fill(NaN,(nky)),fill(NaN*im,(nky)),missing,
-            1.0,1.0,0.3,0.0,0.0,0.0,1.0,0.0,0.0,1.0,
-            1.0,0.0,1.0,1.0,1.0,1.25,18.0,1.65,0.3,0.5,
-            3.0,0.0,1.0,0.0,0.0,2.0,1.0,16.0,0.0,0.0,
-            0.0,0.0,0.0,16.0,0.0,0.0,0.0,0.0,0.0,1.0,
-            1.0,1.0,0.1,0.0,0.0,0.0,0.7,1.0e-13,true)
-        else
+
             new("",
             missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
             missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
@@ -128,13 +132,24 @@ mutable struct InputTJLF{T<:Real}
             NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,
             NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,
             NaN,NaN,NaN,NaN,NaN,NaN,NaN,1.0e-13,true)
+
+
+        else
+            new("GYRO",
+            false,false,true,true,false,missing,true,false,true,false,
+            0,2,2,21,4,4,32,12,0,2,0,-1,
+            fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),
+            fill(NaN,(nky)),fill(NaN,(nky)),fill(NaN*im,(nky)),missing,
+            1.0,1.0,0.3,0.0,0.0,0.0,1.0,0.0,0.0,1.0,
+            1.0,0.0,1.0,1.0,1.0,1.25,18.0,1.65,0.3,0.5,
+            3.0,0.0,1.0,0.0,0.0,2.0,1.0,16.0,0.0,0.0,
+            0.0,0.0,0.0,16.0,0.0,0.0,0.0,0.0,0.0,1.0,
+            1.0,1.0,0.1,0.0,0.0,0.0,0.7,1.0e-13,true)
         end
     end
-
 end
 
 mutable struct Options{T<:Real} # This acts as the interface module of Fortran, essentially. It reads the TGLFEP file
-
     PROCESS_IN::Union{Int, Missing} # May need to be a MODE_IN::Union{T, Missing} for PROCESS_IN <= 1
     THRESHOLD_FLAG::Union{Int, Missing}
     N_BASIS::Union{Int, Missing}
@@ -225,7 +240,7 @@ mutable struct Options{T<:Real} # This acts as the interface module of Fortran, 
     # There is a bit of confusion on if the same goes for the FACTOR_IN_PROFILE. 
 
     # There are few things that depend on the profile reading: nr
-    function Options{T}(nscan_in::Int, widthin::Bool, nn::Int, nr::Int, jtscale_max::Int, nmodes::Int) where {T<:Real}
+    function Options{T}(nscan_in::Int64, widthin::Bool, nn::Int64, nr::Int64, jtscale_max::Int64, nmodes::Int64) where {T<:Real}
         if(widthin)
             new(missing, missing, missing, missing, missing, missing, missing, missing, missing, missing,
             NaN, NaN, NaN, missing, missing, nscan_in, missing, missing, NaN, widthin, NaN,
@@ -353,6 +368,9 @@ mutable struct profile{T<:Real}
 
     CS::Union{Vector{T},Missing}  #81
 
+    # function profile()
+    #     return profile{Float64}()
+    # end
     # As of right now, I don't believe there needs to be parameters, but the vectors
     # are probably the most of concern there. 
     function profile{T}(nr::Int, ns::Int) where (T<:Real)
@@ -373,9 +391,12 @@ mutable struct profile{T<:Real}
     end
 end
 
-mutable struct InputTJLFEP{T<:Real}
-    InputTJLF::InputTJLF
-    Options::Options
-    profile::profile
-end
+# mutable struct InputTJLFEP{T<:Real}
+#     InputTJLF::InputTJLF
+#     Options::Options
+#     profile::profile
+
+#     function InputTJLFEP()
+#     end
+#end
 

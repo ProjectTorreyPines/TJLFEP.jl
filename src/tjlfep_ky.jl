@@ -4,7 +4,7 @@
 #using .TJLFEP: convert_input
 #using MPI
 
-function TJLFEP_ky(inputsEP::InputTJLFEPoption{Float64}, inputsPR::profile{Float64}, str_wf_file::String, l_wavefunction_out::Int, printout::Bool = true) #, factor_in::Int64, kyhat_in::Int64, width_in::Int64)
+function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_wf_file::String, l_wavefunction_out::Int, inputTJLF::InputTJLFEP, printout::Bool = true) #, factor_in::Int64, kyhat_in::Int64, width_in::Int64)
 
     # Temp Defs:
     
@@ -23,7 +23,7 @@ function TJLFEP_ky(inputsEP::InputTJLFEPoption{Float64}, inputsPR::profile{Float
 
     #========================================#
 
-    inputTJLF = TJLF_map(inputsEP, inputsPR)
+    inputTJLF = TJLF_map(inputsEP, inputsPR, inputTJLF)
 
     #println("GradBFactor:")
     #println(inputTJLF.GRADB_FACTOR)
@@ -77,7 +77,7 @@ function TJLFEP_ky(inputsEP::InputTJLFEPoption{Float64}, inputsPR::profile{Float
     #println("inputTJLF: ")
     #println(typeof(inputTJLF))
 
-    convInput = convert_input(inputTJLF, inputTJLF.NS, inputTJLF.NKY)
+    convInput = convert_input(inputTJLFEP, inputTJLFEP.NS, inputTJLFEP.NKY)
     #println("convInput: ")
     #println(typeof(convInput))
 
@@ -138,8 +138,8 @@ function TJLFEP_ky(inputsEP::InputTJLFEPoption{Float64}, inputsPR::profile{Float
 
     # Next is the get_growthrate stuff. I now need to make sure that run_TJLF is giving me all the information I need to continue this.
 
-    g = fill(NaN, inputTJLF.NMODES)
-    f = fill(NaN, inputTJLF.NMODES)
+    g = fill(NaN, inputTJLFEP.NMODES)
+    f = fill(NaN, inputTJLFEP.NMODES)
     for n = 1:inputTJLF.NMODES
         g[n] = gamma_out[n]
         f[n] = freq_out[n]

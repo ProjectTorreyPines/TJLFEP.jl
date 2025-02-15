@@ -1,5 +1,6 @@
 using Revise
-include("../src/TJLF.jl")
+#println("Including: ", abspath("../../TJLF/src/TJLF.jl"))
+include(joinpath(@__DIR__, "../../TJLF/src/TJLF.jl"))
 using .TJLF
 using Plots
 using Base.Threads
@@ -14,7 +15,7 @@ inputs: TJLFEP.InputTJLF{Float64} struct
 
 outputs: Main.TJLF.InputTJLF{Float64} struct of the same values
 """
-function convert_input(input::TJLFEP.InputTJLF{Float64}, ns::Int64, nky::Int64)
+function convert_input(input::InputTJLFEP{Float64}, ns::Int64, nky::Int64)
     # Extract relevant fields from InputTJLF{Float64} and construct Main.TJLF.InputTJLF{Float64}
     new_input = Main.TJLFEP.TJLF.InputTJLF{Float64}(ns, nky)
     new_input.UNITS = input.UNITS

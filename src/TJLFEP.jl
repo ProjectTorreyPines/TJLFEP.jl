@@ -7,7 +7,7 @@ using StaticArrays
 
 include("tjlfep_modules.jl")
 include("tjlfep_read_inputs.jl")
-include("EXPROconst.jl")
+# include("EXPROconst.jl")
 include("tjlfep_ky.jl")
 include("tjlfep_kwscale_scan.jl")
 include("mainsub.jl")
@@ -18,7 +18,7 @@ include("run_tjlfep.jl")
 include("tjlfep_generate_input.jl")
 
 #sgould this line just be the big struct?
-export InputTJLFEP, Pprofile, Options, InputTJLF
+export InputTJLFEP, profile, Options
 export readMTGLF, readTGLFEP, TJLF_map, readEXPRO
 export convert_input, revert_input
 export tjlfep_complete_output
