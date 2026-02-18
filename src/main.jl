@@ -7,17 +7,14 @@ using Pkg
 using Plots
 Pkg.activate("..")
 include("TJLFEP.jl")
-include(joinpath(@__DIR__, "../../TJLF/src/TJLF.jl"))
 using .TJLFEP
-using .TJLFEP: convert_input
-using .TJLFEP: revert_input
-using .TJLF
 using Base.Threads
 using LinearAlgebra
 using Dates
 BLAS.set_num_threads(1)
 begin
-    homedirectory = pwd()
+    # homedirectory = pwd()
+    homedirectory = "/global/homes/w/whoffman/.julia/dev/TJLF/tjlf-ep"
 
     tglfepfilepath = homedirectory*"/../outputs/tjlfeptests/isEP3v6/input.TGLFEP"
     mtglffilepath = homedirectory*"/../outputs/tjlfeptests/isEP3v6/input.MTGLF"
@@ -25,7 +22,7 @@ begin
 
     # tjlf_ep_input = TJLF_EP_Input(dd)    
 
-    runTHD(tglfepfilepath, mtglffilepath, exprofilepath, printout = false)
+    TJLFEP.runTHD(tglfepfilepath, mtglffilepath, exprofilepath, printout = true)
 end
 # I will now run runTHDs on two examples:
 #=

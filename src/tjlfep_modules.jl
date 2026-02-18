@@ -297,17 +297,34 @@ mutable struct InputTJLF{T<:Real}
         end
     end
 
+    function InputTJLF{T}(ns::Int, nky::Int, dflt::Bool) where {T<:Real}
+        if dflt
+            new("GYRO",
+            false,false,true,true,false,missing,true,false,true,false,
+            0,ns,2,21,4,4,32,nky,0,2,0,-1,
+            fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),
+            fill(NaN,(nky)),fill(NaN,(nky)),fill(NaN*im,(nky)),missing,
+            1.0,1.0,0.3,0.0,0.0,0.0,1.0,0.0,0.0,1.0,
+            1.0,0.0,1.0,1.0,1.0,1.25,18.0,1.65,0.3,0.5,
+            3.0,0.0,1.0,0.0,0.0,2.0,1.0,16.0,0.0,0.0,
+            0.0,0.0,0.0,16.0,0.0,0.0,0.0,0.0,0.0,1.0,
+            1.0,1.0,0.1,0.0,0.0,0.0,0.7,1.0e-13,true)
+        else
+            new("",
+            missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
+            missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
+            fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),
+            fill(NaN,(nky)),fill(NaN,(nky)),fill(NaN*im,(nky)),missing,
+            0.0,0.0,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,
+            NaN,0,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,
+            NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,
+            NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,
+            NaN,NaN,NaN,NaN,NaN,NaN,NaN,1.0e-13,true)
+        end
+    end
+
     function InputTJLF{T}(ns::Int, nky::Int) where {T<:Real}
-        new("",
-        missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
-        missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
-        fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),
-        fill(NaN,(nky)),fill(NaN,(nky)),fill(NaN*im,(nky)),missing,
-        0,0,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,
-        NaN,0,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,
-        NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,
-        NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,
-        NaN,NaN,NaN,NaN,NaN,NaN,NaN,1.0e-13,true)
+        InputTJLF{T}(ns, nky, false)
     end
 
     # create InputTJLF struct given a InputTGLF struct
@@ -565,7 +582,7 @@ mutable struct profile{T<:Real}
     # As of right now, I don't believe there needs to be parameters, but the vectors
     # are probably the most of concern there. 
     function profile{T}(nr::Int, ns::Int) where (T<:Real)
-        new(NaN, NaN, missing, missing, 1, missing, fill(NaN, ns), fill(NaN, ns),
+        new(NaN, NaN, nr, ns, 1, missing, fill(NaN, ns), fill(NaN, ns),
         fill(NaN, (nr, ns)), fill(NaN, (nr, ns)), fill(NaN, (nr, ns)), fill(NaN, (nr, ns)), 
         fill(NaN, (nr, ns)), fill(NaN, (nr, ns)), fill(NaN, nr), fill(NaN, nr), fill(NaN, nr), 
         fill(NaN, nr), fill(NaN, nr), fill(NaN, nr), fill(NaN, nr), fill(NaN, nr), fill(NaN, nr), 

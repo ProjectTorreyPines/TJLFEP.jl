@@ -125,8 +125,11 @@ function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_w
     #    println(convInput.WIDTH)
     #end
 
-    # Run TJLF and return QLweight and eigenvalues:
-    gamma_out, freq_out, particle_QL_out, energy_QL_out, stress_par_QL_out, exchange_QL_out, field_weight_out, satParams, nmodes_out = TJLF.run(inputTJLF)
+    # Convert from TJLFEP.InputTJLF to TJLF.InputTJLF for compatibility
+    convInput = convert_input(inputTJLF, inputTJLF.NS, inputTJLF.NKY)
+
+    # Run TJLF with converted input
+    gamma_out, freq_out, particle_QL_out, energy_QL_out, stress_par_QL_out, exchange_QL_out, field_weight_out, satParams, nmodes_out = TJLF.run(convInput)
 
 
 
@@ -134,15 +137,14 @@ function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_w
     #println(typeof(field_weight_out))
     #println(typeof(satParams.y))
 
-###I DONT THINK WE NEED FOR FUSE, SINCE WE BROUGHT IN AND KEPT A TJLF object
-    #inputTJLF = revert_input(convInput, convInput.NS, convInput.NKY)
+    # Convert back from TJLF.InputTJLF to TJLFEP.InputTJLF
+    inputTJLF = revert_input(convInput, convInput.NS, convInput.NKY)
     
-
 
     # Next is the get_growthrate stuff. I now need to make sure that run_TJLF is giving me all the information I need to continue this.
 
-    g = fill(NaN, inputTJLFEP.NMODES)
-    f = fill(NaN, inputTJLFEP.NMODES)
+    g = fill(NaN, inputTJLF.NMODES)
+    f = fill(NaN, inputTJLF.NMODES)
     for n = 1:inputTJLF.NMODES
         g[n] = gamma_out[n]
         f[n] = freq_out[n]
@@ -178,7 +180,7 @@ function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_w
     # This function was translated within TJLF so as to get the wavefunction.
     ms = 128
     max_plot = Int(18*ms/8+1)
-    wavefunction, angle, nplot, nmodes, nmodes_out = TJLF.get_wavefunction(inputTJLF, satParams, field_weight_out, nmodes_out)
+    wavefunction, angle, nplot, nmodes, nmodes_out = TJLF.get_wavefunction(convInput, satParams, field_weight_out, nmodes_out)
 
 
     inputsEP.LTEARING .= false
