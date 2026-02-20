@@ -5,8 +5,19 @@ inputs: tglfepfilepath, mtglffilepath, exprofilepath
 
 inputs are used in the threads version of the TJLFEP code for a single run
 """
-
 function runTHD(tglfepfilepath::String, mtglffilepath::String, exprofilepath::String; printout::Bool=false)
+
+    # Default values for EXPRO:
+    ni = TJLFEP.exproConst.ni
+    Ti = TJLFEP.exproConst.Ti
+    dlnnidr = TJLFEP.exproConst.dlnnidr
+    dlntidr = TJLFEP.exproConst.dlntidr
+    cs = TJLFEP.exproConst.cs
+    rmin_ex = TJLFEP.exproConst.rmin_ex
+    omegaGAM = TJLFEP.exproConst.omegaGAM
+    gammaE = TJLFEP.exproConst.gammaE
+    gammap = TJLFEP.exproConst.gammap
+    # These should be set from the working directory, but these test cases are good for now:
 
     homedir = pwd()
 
@@ -14,9 +25,12 @@ function runTHD(tglfepfilepath::String, mtglffilepath::String, exprofilepath::St
     iMPexist::Bool = false
     iEXPexist::Bool = false
 
+
+
     iEPexist = isfile(tglfepfilepath)
     iMPexist = isfile(mtglffilepath)
     iEXPexist = isfile(exprofilepath)
+
 
     @assert iEPexist != false "Requested TGLFEP input file path does not exist"
     @assert iMPexist != false "Requested MTGLF input file path does not exist"
@@ -26,90 +40,152 @@ function runTHD(tglfepfilepath::String, mtglffilepath::String, exprofilepath::St
     inputMPfile = mtglffilepath
     inputEXPfile = exprofilepath
 
-    # Set up profile struct:
-    prof = readMTGLF(inputMPfile)
-    inputMTGLF = prof[1]
-    ir_exp = prof[2]
+    #inputEPfile = "/Users/benagnew/TJLF.jl/outputs/tglfep_tests/input.TGLFEP"
+    #inputMPfile = "/Users/benagnew/TJLF.jl/outputs/tglfep_tests/input.MTGLF"
 
+    # Set up profile struct:
+    prof = TJLFEP.readMTGLF(inputMPfile)
+    profile = prof[1]
+    # println("this is input mtglf",profile)
+    ir_exp = prof[2]
+    # println("this is ir_exp",prof[2])
     # Set up TGLFEP struct:
-    inputTGLFEP = readTGLFEP(inputEPfile, ir_exp)
+    Options = TJLFEP.readTGLFEP(inputEPfile, ir_exp)
 
     # Set up EXPRO constants:
-    ni, Ti, dlnnidr, dlntidr, cs, rmin_ex, gammaE, gammap, omegaGAM = readEXPRO(inputEXPfile, inputTGLFEP.IS_EP)
+    ni, Ti, dlnnidr, dlntidr, cs, rmin_ex, gammaE, gammap, omegaGAM = TJLFEP.readEXPRO(inputEXPfile, Options.IS_EP)
 
-    dpdr_EP = fill(NaN, inputMTGLF.NR)
-    if (inputTGLFEP.INPUT_PROFILE_METHOD == 2)
+    # profile.gammaE = gammaE
+    # profile.gamm_p = gammap
+    # profile.omegaGAM = omegaGAM
+
+    dpdr_EP = fill(NaN, profile.NR)
+    if (Options.INPUT_PROFILE_METHOD == 2)
         for i in eachindex(dpdr_EP)
-            dpdr_EP[i] = ni[i]*Ti[i]*(dlnnidr[i]+dlntidr[i])
+            dpdr_EP[i] = ni[i]*Ti[i]*(dlnnidr[i]+dlntidr[i])# This has some small changes from old main
         end
+        #println(Options.FACTOR)
+        println("ir_exp ",ir_exp)
         dpdr_EP_abs = abs.(dpdr_EP)
         dpdr_EP_max = maximum(dpdr_EP_abs)
         dpdr_EP_max_loc = argmax(dpdr_EP_abs)
         n_at_max = ni[dpdr_EP_max_loc]
-        if (inputTGLFEP.PROCESS_IN != 5)
-            for ir = 1:inputTGLFEP.SCAN_N
-                inputTGLFEP.FACTOR = inputTGLFEP.FACTOR*dpdr_EP_max/dpdr_EP_abs[ir_exp[ir]] 
+        if (Options.PROCESS_IN != 5)
+            for ir = 1:Options.SCAN_N
+                Options.FACTOR = Options.FACTOR*dpdr_EP_max/dpdr_EP_abs[ir_exp[ir]] 
+                println("dpdr_EP_abs[ir_exp[ir]]", dpdr_EP_abs[ir_exp[ir]])  
+                println("Options.FACTOR ",Options.FACTOR)
             end
         end
-        inputTGLFEP.FACTOR_MAX_PROFILE .= inputTGLFEP.FACTOR
+        Options.FACTOR_MAX_PROFILE .= Options.FACTOR
     end
 
-    inputTGLFEP.F_REAL .= 1.0
-    if (inputTGLFEP.REAL_FREQ == 1) 
-        inputTGLFEP.F_REAL .= (cs[:]/(rmin_ex[inputMTGLF.NR]))/(2*pi*1.0e3)
+    Options.F_REAL .= 1.0
+    if (Options.REAL_FREQ == 1) 
+        Options.F_REAL .= (cs[:]/(rmin_ex[profile.NR]))/(2*pi*1.0e3)
     end
 
-    if (inputTGLFEP.INPUT_PROFILE_METHOD == 2)
-        # Allotting Ir_exp not from inputMTGLF.
-        inputTGLFEP.IR_EXP = fill(0, inputTGLFEP.SCAN_N)
-        for i = 1:inputTGLFEP.SCAN_N
-            if (inputTGLFEP.SCAN_N != 1)
-                jr_exp = inputMTGLF.IRS + floor((i-1)*(inputMTGLF.NR-inputMTGLF.IRS)/(inputTGLFEP.SCAN_N-1))
+    if (Options.INPUT_PROFILE_METHOD == 2)
+        # Allotting Ir_exp not from profile.
+        Options.IR_EXP = fill(0, Options.SCAN_N)
+        for i = 1:Options.SCAN_N
+            if (Options.SCAN_N != 1)
+                jr_exp = profile.IRS + floor((i-1)*(profile.NR-profile.IRS)/(Options.SCAN_N-1))
             else
-                jr_exp = inputMTGLF.IRS
+                jr_exp = profile.IRS
             end
-            inputTGLFEP.IR_EXP[i] = jr_exp
+            Options.IR_EXP[i] = jr_exp
         end
     end
 
     # deepcopy is required so as to avoid overwriting of data:
-    n_ir = inputTGLFEP.SCAN_N
-    Ts = fill(inputTGLFEP, n_ir)
-    Ts[1] = deepcopy(inputTGLFEP)
+    n_ir = Options.SCAN_N
+    Ts = fill(Options, n_ir)
+    Ts[1] = deepcopy(Options)
     for i in 2:n_ir
         Ts[i] = deepcopy(Ts[i-1])
     end
     arrTGLFEP = Ts
-    arrMTGLF = fill(inputMTGLF, n_ir)
-    arrgrowth = fill(fill(NaN,(5, 10, 10, inputTGLFEP.NMODES)), n_ir)
+    arrMTGLF = fill(profile, n_ir)
+    arrgrowth = fill(fill(NaN,(5, 10, 10, Options.NMODES)), n_ir)
 
-    # Create InputTJLF structs for each scan with default values
-    # Use (ns, nky, true) constructor to load defaults like tjlf-ep branch
-    inputTJLF_array = Vector{InputTJLF}(undef, n_ir)
     for i in 1:n_ir
-        inputTJLF_array[i] = InputTJLF{Float64}(inputMTGLF.NS, 12, true)
+        #try
+            arrTGLFEP[i].IR = arrTGLFEP[i].IR_EXP[i]
+            #println(arrTGLFEP[i].IR)
+            ir = arrTGLFEP[i].IR
+            str_r = lpad(string(ir), 3, '0')
+            arrTGLFEP[i].SUFFIX = "_r"*str_r
+            arrTGLFEP[i].FACTOR_IN = arrTGLFEP[i].FACTOR[i]
+            input1 = arrTGLFEP[i]
+            input2 = arrMTGLF[i]
+            arrgrowth[i], arrTGLFEP[i], arrMTGLF[i] = TJLFEP.mainsub(input1, input2, printout)
+        #catch
+        #end
     end
 
-for i in 1:n_ir
-    arrTGLFEP[i].IR = arrTGLFEP[i].IR_EXP[i]
-    ir = arrTGLFEP[i].IR
-    str_r = lpad(string(ir), 3, '0')
-    arrTGLFEP[i].SUFFIX = "_r"*str_r
-    arrTGLFEP[i].FACTOR_IN = arrTGLFEP[i].FACTOR[i]
-    input1 = arrTGLFEP[i]
-    input2 = arrMTGLF[i]
-    arrgrowth[i], arrTGLFEP[i], arrMTGLF[i] = mainsub(input1, input2, inputTJLF_array[i], printout)
-end
-
     # Print out basic information about the run (that is common to all radii):
-    inputTGLFEP = arrTGLFEP[1]
+    Options = arrTGLFEP[1]
+    
+    kymark_out::Vector{Float64} = fill(NaN, Options.SCAN_N)
+    width::Vector{Float64} = fill(NaN, Options.SCAN_N)
+
+    if (!Options.WIDTH_IN_FLAG)
+        # Non-MPI:
+        # There are only "3" processes in Threads -- 
+        for i = 1:n_ir
+            width[i] = arrTGLFEP[i].WIDTH_IN
+            kymark_out[i] = arrTGLFEP[i].KYMARK
+            
+        end
+    end
+
+    if (printout)
+        io2 = open("out.TGLFEP", "w")
+        println(io2, "process_in = ", Options.PROCESS_IN)
+
+        if (Options.PROCESS_IN <= 1) println(io2, "mode_in = ", Options.MODE_IN) end
+        if ((Options.PROCESS_IN == 4) || (Options.PROCESS_IN == 5)) println(io2, "threshold_flag = ", Options.THRESHOLD_FLAG) end
+
+        println(io2, "ky_mode = ", Options.KY_MODEL)
+        println(io2, "--------------------------------------------------------------")
+        println(io2, "scan_n = ", Options.SCAN_N)
+        println(io2, "irs = ", Options.IRS)
+        println(io2, "n_basis = ", Options.N_BASIS)
+        println(io2, "scan_method = ", Options.SCAN_METHOD)
+
+        if (Options.WIDTH_IN_FLAG)
+            println(io2, "ir,  width")
+            for i = 1:Options.SCAN_N
+                println(io2, Options.IRS+i-1, " ", width[i])
+            end
+        else
+            println(io2, "ir,  width,  kymark")
+            for i = 1:Options.SCAN_N
+                println(io2, Options.IRS+i-1, " ", width[i], " ", kymark_out[i])
+            end
+        end
+
+        println(io2, "--------------------------------------------------------------")
+        println(io2, "factor_in_profile = ", Options.FACTOR_IN_PROFILE)
+        if (Options.FACTOR_IN_PROFILE)
+            for i = 1:Options.SCAN_N
+                println(io2, Options.FACTOR[i])
+            end
+        else
+            println(io2, Options.FACTOR[1])
+        end
+
+        println(io2, "width_in_flag = ", Options.WIDTH_IN_FLAG)
+        if (!Options.WIDTH_IN_FLAG) println(io2, "width_min = ", Options.WIDTH_MIN, " width_max = ", Options.WIDTH_MAX) end
+        close(io2)
+    end
     
     # Initialize output arrays
-    kymark_out::Vector{Float64} = fill(NaN, inputTGLFEP.SCAN_N)
-    width::Vector{Float64} = fill(NaN, inputTGLFEP.SCAN_N)
-
+    # kymark_out and width already defined above
+    
     # Now continue on to radii-dependent part:
-    if ((inputTGLFEP.PROCESS_IN == 4) || (inputTGLFEP.PROCESS_IN == 5))
+    if ((Options.PROCESS_IN == 4) || (Options.PROCESS_IN == 5))
         
         if (printout)
             io3 = open("out.TGLFEP", "a")
@@ -118,54 +194,125 @@ end
             println(io3, "**************************************************************")
         end
 
-        SFmin = fill(0.0, inputTGLFEP.SCAN_N)
-        SFmin_out = fill(0.0, inputMTGLF.NR)
-        dndr_crit = fill(NaN, inputTGLFEP.SCAN_N)
-        dndr_crit_out = fill(NaN, inputMTGLF.NR)
-        dpdr_crit = fill(NaN, inputTGLFEP.SCAN_N)
-        dpdr_crit_out = fill(NaN, inputMTGLF.NR)
+        SFmin = fill(0.0, Options.SCAN_N)
+        SFmin_out = fill(0.0, profile.NR)
+        dndr_crit = fill(NaN, Options.SCAN_N)
+        dndr_crit_out = fill(NaN, profile.NR)
+        dpdr_crit = fill(NaN, Options.SCAN_N)
+        dpdr_crit_out = fill(NaN, profile.NR)
 
-        if (inputTGLFEP.THRESHOLD_FLAG == 0)
+        if (Options.THRESHOLD_FLAG == 0)
             for i = 1:n_ir
                 SFmin[i] = arrTGLFEP[i].FACTOR_IN
             end
+            # MPI Original:
+            #SFmin[1] = Options.FACTOR_IN
+            #println(io3, Options.FACTOR_IN, " factor_in before")
+            #println("Before MPI.Recv! for factor_in.")
+            #=for i = 1:Options.SCAN_N-1
+                buf_factor = [NaN]
+                MPI.Recv!(buf_factor, i, i, MPI.COMM_WORLD)
+                SFmin[i+1] = buf_factor[1]
+                #println(io3, SFmin[i_1], " factor_in after and ", Options.FACTOR_IN, " buf_factor after")
+                #println(io3, SFmin) # before buf_factor
+                #SFmin[i+1] = buf_factor[1]
+                #println(io3, SFmin) # after buf_factor, before comp.out
             
-            SFmin, SFmin_out, ir_min, ir_max, l_accept_profile = tjlfep_complete_output(SFmin, inputTGLFEP, inputMTGLF)
-            
-            if ((ir_min-inputTGLFEP.IRS+1) > 1)
-                if (ir_min-inputTGLFEP.IRS > inputTGLFEP.SCAN_N)
-                    SFmin[1:inputTGLFEP.SCAN_N] = inputTGLFEP.FACTOR_MAX_PROFILE[1:inputTGLFEP.SCAN_N]
-                else
-                    SFmin[1:ir_min-inputTGLFEP.IRS] = inputTGLFEP.FACTOR_MAX_PROFILE[1:ir_min-inputTGLFEP.IRS]
+            end=#
+            if (printout)
+                println("After MPI.Recv! for factor_in")
+                println(io3, "--------------------------------------------------------------")
+                println(io3, "SFmin")
+            end
+        
+        # Next is TGLFEP_complete_output(SFmin, SFmin_out, ir_min, ir_max, l_accept_profile)
+        # This function's goal is to determine whether 
+
+            SFmin, SFmin_out, ir_min, ir_max, l_accept_profile = tjlfep_complete_output(SFmin, Options, profile)
+        
+            if (printout)
+                println(io3, SFmin, " SFmin after buf and coutput") # after comp.out
+            end
+            #println(io3, Options.FACTOR_MAX_PROFILE)
+
+            # We've received the altered profile (interpolated and accepted or not).
+            # If the minimum radius is not the first one...
+            if ((ir_min-Options.IRS+1) > 1)
+                # Originally, this had no concern for accessing out-of-range values;
+                # it does now:
+
+                # Set any scans before this point's factor values to the factor_max_profile values respectively (?? Why so physically)
+                # If you're running a normal amount of scans, this will pretty much never be done, right?
+                if (ir_min-Options.IRS > Options.SCAN_N)
+                    SFmin[1:Options.SCAN_N] = Options.FACTOR_MAX_PROFILE[1:Options.SCAN_N]
+                else # original alone:
+                    SFmin[1:ir_min-Options.IRS] = Options.FACTOR_MAX_PROFILE[1:ir_min-Options.IRS]
                 end
 
-                if (inputTGLFEP.IRS > 1) SFmin_out[1:inputTGLFEP.IRS-1] .= inputTGLFEP.FACTOR_MAX_PROFILE[1] end
+                # If the starting radius is greater than 1, set the values before it in the interpolated profile to
+                # the first value of the max_profile
+                if (Options.IRS > 1) SFmin_out[1:Options.IRS-1] .= Options.FACTOR_MAX_PROFILE[1] end
 
-                if (ir_min-inputTGLFEP.IRS > inputTGLFEP.SCAN_N)
-                    SFmin_out[inputTGLFEP.IRS:inputTGLFEP.SCAN_N+1] = inputTGLFEP.FACTOR_MAX_PROFILE[1:inputTGLFEP.SCAN_N]
+                # This one doesn't look right...
+                # This says that in the interpolated profile, you should set any values from the initial to the first point (minus 1)
+                # to the same factor_max_profile. But this factor_max_profile is not an interpolation...
+                # Is this being done as a default value? FACTOR_MAX_PROFILE if just scan_n of the same value for the case I've been testing
+                # hence it's return of 1.0 (*) when rejected. The problem is that this doesn't make much sense for SFmin_out...
+
+                # The problem is that this ignores defaults again. If factor_max_profile is accessed outside of scan_n, they should be set to 0...
+                if (ir_min-Options.IRS > Options.SCAN_N)
+                    # The +1 on SFmin_out exists because the original is keeping a spacing of 1 between the two...
+                    SFmin_out[Options.IRS:Options.SCAN_N+1] = Options.FACTOR_MAX_PROFILE[1:Options.SCAN_N]
+
+                    # This is a test input:
+                    # SFmin_out[Options.SCAN_N+1:ir_min-Options.IRS] = 0.0
                 else
-                    SFmin_out[inputTGLFEP.IRS:ir_min-1] = inputTGLFEP.FACTOR_MAX_PROFILE[1:ir_min-inputTGLFEP.IRS]
+                    SFmin_out[Options.IRS:ir_min-1] = Options.FACTOR_MAX_PROFILE[1:ir_min-Options.IRS]
                 end
             end
 
-            if ((ir_max-inputTGLFEP.IRS+1) < inputTGLFEP.SCAN_N)
-                SFmin[ir_max-inputTGLFEP.IRS+2:inputTGLFEP.SCAN_N] = inputTGLFEP.FACTOR_MAX_PROFILE[ir_max-inputTGLFEP.IRS+2:inputTGLFEP.SCAN_N]
-                if (inputTGLFEP.IRS+inputTGLFEP.SCAN_N-1 < inputMTGLF.NR) SFmin_out[inputTGLFEP.IRS+inputTGLFEP.SCAN_N:inputMTGLF.NR] .= inputTGLFEP.FACTOR_MAX_PROFILE[inputTGLFEP.SCAN_N] end
-                SFmin_out[ir_max+1:inputTGLFEP.IRS+inputTGLFEP.SCAN_N-1] = inputTGLFEP.FACTOR_MAX_PROFILE[ir_max-inputTGLFEP.IRS+2:inputTGLFEP.SCAN_N]
+            # Perform a similar maneuver for above the maximum:
+            if ((ir_max-Options.IRS+1) < Options.SCAN_N)
+                SFmin[ir_max-Options.IRS+2:Options.SCAN_N] = Options.FACTOR_MAX_PROFILE[ir_max-Options.IRS+2:Options.SCAN_N]
+                if (Options.IRS+Options.SCAN_N-1 < profile.NR) SFmin_out[Options.IRS+Options.SCAN_N:profile.NR] .= Options.FACTOR_MAX_PROFILE[Options.SCAN_N] end
+                SFmin_out[ir_max+1:Options.IRS+Options.SCAN_N-1] = Options.FACTOR_MAX_PROFILE[ir_max-Options.IRS+2:Options.SCAN_N]
             end
 
-            if (inputTGLFEP.INPUT_PROFILE_METHOD == 2)
+            if (printout)
+                println(io3, SFmin, " SFmin after Max assign")
+            end
+
+            if (printout)
+                for i = 1:Options.SCAN_N
+                    if (l_accept_profile[i])
+                        println(io3, SFmin[i])
+                    else
+                        println(io3, SFmin_out[i+Options.IRS-1], "   (*)")
+                    end
+                    println(io3, "--------------------------------------------------------------")
+                    println(io3, l_accept_profile)
+                    println(io3, ir_min, " : ", ir_max)
+                end
+            end
+
+            # Calculate the density critical gradient at each of the scanned radii.
+            if (Options.INPUT_PROFILE_METHOD == 2)
                 dndr_crit .= 10000.0
-                for i = 1:inputTGLFEP.SCAN_N
+                for i = 1:Options.SCAN_N
+                    # If SFmin[i] is not the default non-rejected value, multiply the scalefactor by the density and the density gradient at that point 
+                    # for the energetic ion. 
+                    # If SFmin[i] is the default or >= 9k, check if it is one of the factor_max_profile ones, and if so, calculate it with that.
+                    # otherwise, leave it at 10k.
                     if (SFmin[i] < 9000.0)
-                        dndr_crit[i] = SFmin[i]*ni[Int(inputTGLFEP.IR_EXP[i])]*dlnnidr[Int(inputTGLFEP.IR_EXP[i])]
-                    elseif ((i < ir_min-inputTGLFEP.IRS+1) || (i > ir_max-inputTGLFEP.IRS+1))
-                        dndr_crit[i] = inputTGLFEP.FACTOR_MAX_PROFILE[i]*ni[Int(inputTGLFEP.IR_EXP[i])]*dlnnidr[Int(inputTGLFEP.IR_EXP[i])]
+                        dndr_crit[i] = SFmin[i]*ni[Int(Options.IR_EXP[i])]*dlnnidr[Int(Options.IR_EXP[i])]
+                    elseif ((i < ir_min-Options.IRS+1) || (i > ir_max-Options.IRS+1))
+                        dndr_crit[i] = Options.FACTOR_MAX_PROFILE[i]*ni[Int(Options.IR_EXP[i])]*dlnnidr[Int(Options.IR_EXP[i])]
                     end
                 end
-                dndr_crit, dndr_crit_out, ir_dum_1, ir_dum_2, l_accept_profile = tjlfep_complete_output(dndr_crit, inputTGLFEP, inputMTGLF)
+                # Interpolate and accept are reject needed values of this profile:
+                dndr_crit, dndr_crit_out, ir_dum_1, ir_dum_2, l_accept_profile = tjlfep_complete_output(dndr_crit, Options, profile)
                 
-                if (true)
+                if (printout)
                     io4 = open("alpha_dndr_crit.input", "w")
                     println(io4, "Density critical gradient (10^19/m^4)")
                     println(io4, dndr_crit_out)
@@ -173,34 +320,58 @@ end
                 end
             end
 
-            if (inputTGLFEP.INPUT_PROFILE_METHOD == 2)
+            if (Options.INPUT_PROFILE_METHOD == 2)
                 dpdr_crit .= 10000.0
                 dpdr_EP[:] .= ni[:].*Ti[:].*(dlnnidr[:].+dlntidr[:]).*0.16022
-                for i = 1:inputTGLFEP.SCAN_N
+                for i = 1:Options.SCAN_N
                     if (SFmin[i] < 9000.0)
-                        if ((inputTGLFEP.PROCESS_IN == 4) || (inputTGLFEP.PROCESS_IN == 5))
-                            case = inputTGLFEP.SCAN_METHOD
+                        if ((Options.PROCESS_IN == 4) || (Options.PROCESS_IN == 5))
+                            case = Options.SCAN_METHOD
                             if (case == 1)
                                 dpdr_scale = SFmin[i]
                             elseif (case == 2)
-                                dpdr_scale = ((SFmin[i]*dlnnidr[inputTGLFEP.IR_EXP[i]]+dlntidr[inputTGLFEP.IR_EXP[i]]) /
-                                (dlnnidr[inputTGLFEP.IR_EXP[i]]+dlntidr[inputTGLFEP.IR_EXP[i]]))
+                                dpdr_scale = ((SFmin[i]*dlnnidr[Options.IR_EXP[i]]+dlntidr[Options.IR_EXP[i]]) /
+                                (dlnnidr[Options.IR_EXP[i]]+dlntidr[Options.IR_EXP[i]]))
                             end
-                            dpdr_crit[i] = dpdr_scale*dpdr_EP[inputTGLFEP.IR_EXP[i]]
-                        end
-                    end
-                end
-                dpdr_crit, dpdr_crit_out, ir_dum_1, ir_dum_2, l_accept_profile = tjlfep_complete_output(dpdr_crit, inputTGLFEP, inputMTGLF)
+                            dpdr_crit[i] = dpdr_scale*dpdr_EP[Options.IR_EXP[i]]
+                        end # 4 || 5
+                    end # < 9000
+                end # over scan_n
+                dpdr_crit, dpdr_crit_out, ir_dum_1, ir_dum_2, l_accept_profile = tjlfep_complete_output(dpdr_crit, Options, profile)
                 
-                if (true)
+                if (printout)
                     io5 = open("alpha_dpdr_crit.input", "w")
                     println(io5, "Pressure critical gradient (10 kPa/m)")
                     println(io5, dpdr_crit_out)
                     close(io5)
                 end
+            end # end prof. method 2
+
+            if (printout)
+                println(io3, "--------------------------------------------------------------")
+                println(io3, "The EP density threshold n_EP/n_e (%) for gamma_AE = 0")
+                for i = 1:Options.SCAN_N
+                    println(io3, SFmin[i]*profile.AS[Options.IRS+i-1, profile.IS]*100.0) #percent
+                end
             end
-        end
-    end
+            
+            if (printout)
+                println(io3, "--------------------------------------------------------------")
+                println(io3, "The EP beta crit (%) = beta_e*(n_EP_th/n_e)*(T_EP/T_e)")
+                for i = 1:Options.SCAN_N
+                    if (profile.GEOMETRY_FLAG == 0)
+                        println(io3, SFmin[i]*profile.BETAE[Options.IRS+i-1]*100.0*profile.AS[Options.IRS+i-1, profile.IS]*profile.TAUS[Options.IRS+i-1, profile.IS]) #percent
+                    else
+                        println(io3, SFmin[i]*profile.BETAE[Options.IRS+i-1]*100.0*profile.AS[Options.IRS+i-1, profile.IS]*profile.TAUS[Options.IRS+i-1, profile.IS]*profile.KAPPA[Options.IRS+i-1]^2) #percent
+                    end
+                end
+            end
+
+            # there is a process_in == 4 addition I won't be doing quite yet.
+        else # ThreshFlag != 0
+            # Skipping for now as I want to test just threshold flag == 0 first
+        end # ThreshFlag
+    end # process 4 || 5
 
     if (printout)
         close(io3)
@@ -415,10 +586,10 @@ function runTHD(inputTJLF::Vector{TJLF.InputTJLF}, Options::Options{Float64}, pr
         MPI.Barrier(TJLFEP_COMM_IN)=#
         
         if (printout)
-        io3 = open("out.TGLFEP", "a")
-        println(io3, "**************************************************************")
-        println(io3, "************** The critical EP density gradient **************")
-        println(io3, "**************************************************************")
+            io3 = open("out.TGLFEP", "a")
+            println(io3, "**************************************************************")
+            println(io3, "************** The critical EP density gradient **************")
+            println(io3, "**************************************************************")
         end
 
         SFmin = fill(0.0, Options.SCAN_N)
@@ -512,11 +683,11 @@ function runTHD(inputTJLF::Vector{TJLF.InputTJLF}, Options::Options{Float64}, pr
             end
 
             if (printout)
-                for i = 1:inputTGLFEP.SCAN_N
+                for i = 1:Options.SCAN_N
                     if (l_accept_profile[i])
                         println(io3, SFmin[i])
                     else
-                        println(io3, SFmin_out[i+inputTGLFEP.IRS-1], "   (*)")
+                        println(io3, SFmin_out[i+Options.IRS-1], "   (*)")
                     end
                     println(io3, "--------------------------------------------------------------")
                     println(io3, l_accept_profile)
@@ -525,21 +696,21 @@ function runTHD(inputTJLF::Vector{TJLF.InputTJLF}, Options::Options{Float64}, pr
             end
 
             # Calculate the density critical gradient at each of the scanned radii.
-            if (inputTGLFEP.INPUT_PROFILE_METHOD == 2)
+            if (Options.INPUT_PROFILE_METHOD == 2)
                 dndr_crit .= 10000.0
-                for i = 1:inputTGLFEP.SCAN_N
+                for i = 1:Options.SCAN_N
                     # If SFmin[i] is not the default non-rejected value, multiply the scalefactor by the density and the density gradient at that point 
                     # for the energetic ion. 
                     # If SFmin[i] is the default or >= 9k, check if it is one of the factor_max_profile ones, and if so, calculate it with that.
                     # otherwise, leave it at 10k.
                     if (SFmin[i] < 9000.0)
-                        dndr_crit[i] = SFmin[i]*Ni[Int(inputTGLFEP.IR_EXP[i])]*dlnnidr[Int(inputTGLFEP.IR_EXP[i])]
-                    elseif ((i < ir_min-inputTGLFEP.IRS+1) || (i > ir_max-inputTGLFEP.IRS+1))
-                        dndr_crit[i] = inputTGLFEP.FACTOR_MAX_PROFILE[i]*Ni[Int(inputTGLFEP.IR_EXP[i])]*dlnnidr[Int(inputTGLFEP.IR_EXP[i])]
+                        dndr_crit[i] = SFmin[i]*Ni[Int(Options.IR_EXP[i])]*dlnnidr[Int(Options.IR_EXP[i])]
+                    elseif ((i < ir_min-Options.IRS+1) || (i > ir_max-Options.IRS+1))
+                        dndr_crit[i] = Options.FACTOR_MAX_PROFILE[i]*Ni[Int(Options.IR_EXP[i])]*dlnnidr[Int(Options.IR_EXP[i])]
                     end
                 end
                 # Interpolate and accept are reject needed values of this profile:
-                dndr_crit, dndr_crit_out, ir_dum_1, ir_dum_2, l_accept_profile = tjlfep_complete_output(dndr_crit, inputTGLFEP, profile)
+                dndr_crit, dndr_crit_out, ir_dum_1, ir_dum_2, l_accept_profile = tjlfep_complete_output(dndr_crit, Options, profile)
                 
                 if (printout)
                     io4 = open("alpha_dndr_crit.input", "w")
@@ -549,24 +720,24 @@ function runTHD(inputTJLF::Vector{TJLF.InputTJLF}, Options::Options{Float64}, pr
                 end
             end
 
-            if (inputTGLFEP.INPUT_PROFILE_METHOD == 2)
+            if (Options.INPUT_PROFILE_METHOD == 2)
                 dpdr_crit .= 10000.0
                 dpdr_EP[:] .= Ni[:].*Ti[:].*(dlnnidr[:].+dlntidr[:]).*0.16022
-                for i = 1:inputTGLFEP.SCAN_N
+                for i = 1:Options.SCAN_N
                     if (SFmin[i] < 9000.0)
-                        if ((inputTGLFEP.PROCESS_IN == 4) || (inputTGLFEP.PROCESS_IN == 5))
-                            case = inputTGLFEP.SCAN_METHOD
+                        if ((Options.PROCESS_IN == 4) || (Options.PROCESS_IN == 5))
+                            case = Options.SCAN_METHOD
                             if (case == 1)
                                 dpdr_scale = SFmin[i]
                             elseif (case == 2)
-                                dpdr_scale = ((SFmin[i]*dlnnidr[inputTGLFEP.IR_EXP[i]]+dlntidr[inputTGLFEP.IR_EXP[i]]) /
-                                (dlnnidr[inputTGLFEP.IR_EXP[i]]+dlntidr[inputTGLFEP.IR_EXP[i]]))
+                                dpdr_scale = ((SFmin[i]*dlnnidr[Options.IR_EXP[i]]+dlntidr[Options.IR_EXP[i]]) /
+                                (dlnnidr[Options.IR_EXP[i]]+dlntidr[Options.IR_EXP[i]]))
                             end
-                            dpdr_crit[i] = dpdr_scale*dpdr_EP[inputTGLFEP.IR_EXP[i]]
+                            dpdr_crit[i] = dpdr_scale*dpdr_EP[Options.IR_EXP[i]]
                         end # 4 || 5
                     end # < 9000
                 end # over scan_n
-                dpdr_crit, dpdr_crit_out, ir_dum_1, ir_dum_2, l_accept_profile = tjlfep_complete_output(dpdr_crit, inputTGLFEP, profile)
+                dpdr_crit, dpdr_crit_out, ir_dum_1, ir_dum_2, l_accept_profile = tjlfep_complete_output(dpdr_crit, Options, profile)
                 
                 if (printout)
                     io5 = open("alpha_dpdr_crit.input", "w")
@@ -579,19 +750,19 @@ function runTHD(inputTJLF::Vector{TJLF.InputTJLF}, Options::Options{Float64}, pr
             if (printout)
                 println(io3, "--------------------------------------------------------------")
                 println(io3, "The EP density threshold n_EP/n_e (%) for gamma_AE = 0")
-                for i = 1:inputTGLFEP.SCAN_N
-                    println(io3, SFmin[i]*profile.AS[inputTGLFEP.IRS+i-1, profile.IS]*100.0) #percent
+                for i = 1:Options.SCAN_N
+                    println(io3, SFmin[i]*profile.AS[Options.IRS+i-1, profile.IS]*100.0) #percent
                 end
             end
             
             if (printout)
                 println(io3, "--------------------------------------------------------------")
                 println(io3, "The EP beta crit (%) = beta_e*(n_EP_th/n_e)*(T_EP/T_e)")
-                for i = 1:inputTGLFEP.SCAN_N
+                for i = 1:Options.SCAN_N
                     if (profile.GEOMETRY_FLAG == 0)
-                        println(io3, SFmin[i]*profile.BETAE[inputTGLFEP.IRS+i-1]*100.0*profile.AS[inputTGLFEP.IRS+i-1, profile.IS]*profile.TAUS[inputTGLFEP.IRS+i-1, profile.IS]) #percent
+                        println(io3, SFmin[i]*profile.BETAE[Options.IRS+i-1]*100.0*profile.AS[Options.IRS+i-1, profile.IS]*profile.TAUS[Options.IRS+i-1, profile.IS]) #percent
                     else
-                        println(io3, SFmin[i]*profile.BETAE[inputTGLFEP.IRS+i-1]*100.0*profile.AS[inputTGLFEP.IRS+i-1, profile.IS]*profile.TAUS[inputTGLFEP.IRS+i-1, profile.IS]*profile.KAPPA[inputTGLFEP.IRS+i-1]^2) #percent
+                        println(io3, SFmin[i]*profile.BETAE[Options.IRS+i-1]*100.0*profile.AS[Options.IRS+i-1, profile.IS]*profile.TAUS[Options.IRS+i-1, profile.IS]*profile.KAPPA[Options.IRS+i-1]^2) #percent
                     end
                 end
             end
@@ -610,9 +781,9 @@ function runTHD(inputTJLF::Vector{TJLF.InputTJLF}, Options::Options{Float64}, pr
     # The rest of the fortran is deallocations and a process_in == 6 route
 
     # Checking out some info:
-    # @profview TJLFEP.mainsub(inputTGLFEP, profile, TJLFEP_COMM_IN)
+    # @profview TJLFEP.mainsub(Options, profile, TJLFEP_COMM_IN)
     # using BenchmarkTools
-    # @btime TJLFEP.mainsub(inputTGLFEP, profile, TJLFEP_COMM_IN)
+    # @btime TJLFEP.mainsub(Options, profile, TJLFEP_COMM_IN)
     # The following list is for unpopulated fields and things I want to look into today:
     # inputTJLFEP.USE_AVE_ION_GRID
     # inputTJLFEP.WIDTH_SPECTRUM

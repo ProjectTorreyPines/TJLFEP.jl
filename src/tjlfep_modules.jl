@@ -274,34 +274,18 @@ mutable struct InputTJLF{T<:Real}
 
     USE_TRANSPORT_MODEL::Union{Bool, Missing}
 
-    function InputTJLF()
-        return InputTJLF{Float64}()
-    end
-    function InputTJLF{T}() where {T<:Real}
-        new(
-            missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
-            missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
-            missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
-            missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
-            missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
-            missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
-            missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
-            missing,missing,missing,missing,missing,missing,missing,missing,missing,missing,
-            missing,missing,missing,missing)
-    end
-
     #For list-format inputs:
-    function InputTJLF{T}(inP::Bool) where {T<:Real}
-        if inP
-            new("CGYRO", false, false, false, true, false, true, true, true, true, false, 2, 3, 5, 21, 6, 4, 16, 12, 4, 3, 0, -1, [-1.0, 1.0, 6.0], [0.0002723125672605524, 1.0, 6.0], [0.9691383387573976, 1.078021414201318, 0.0733427635614379], [3.332037619158914, 2.0626412607995435, 2.0626412607995435], [1.0, 1.3661261082028286, 1.3661261082028286], [1.0, 0.8075398023805694, 0.030988644410732645], [0.30611236015079274, 0.30611236015079274, 0.30611236015079274], [1.5491649356389778, 1.5491649356389778, 1.5491649356389778], [1.65, 1.65, 1.65, 1.65, 0.9685467847385054, 0.7035623639735143, 0.6324554384084142, 0.591251466897806, 0.5250292077902518, 1.65, 1.65, 1.65, 1.65, 1.65, 1.65, 1.65, 1.551199191728457, 1.5603157485179238, 1.5643992899672103, 1.5643992899672103, 1.4832394778484315, 0.6324554384084142, 0.5390399200630244, 0.4845607815598427], [0.05994688615887238, 0.11989377231774476, 0.17984065847661712, 0.2397875446354895, 0.2997344307943619, 0.5395219754298515, 0.6594157477475961, 0.7793095200653409, 0.8992032923830857, 1.0190970647008304, 1.138990837018575, 1.25888460933632, 1.1989377231774476, 1.60763400555729, 2.1556474918269477, 2.890468908319081, 3.875777714879744, 5.196960552637156, 6.968510831252536, 9.343950702231606, 12.529135254288084, 16.80009186935815, 22.52694069387401, 30.205969167995068], ComplexF64[0.01903754432811539 - 0.03822460700618263im, 0.066744785730153 - 0.08638900959186772im, 0.12700366682079575 - 0.13466694388477374im, 0.17881630543473276 - 0.16774618757919235im, 0.21216108783162443 - 0.18009019917758487im, 0.33316817373508417 - 0.3198305942745321im, 0.34745089281285046 - 0.3955067169459169im, 0.3399817917167648 - 0.4616241685193869im, 0.3137572066001085 - 0.5077973469905399im, 0.28555930064941276 + 0.45333962118452586im, 0.34112248363191056 + 0.501904780504562im, 0.3914434522233301 + 0.5529917255055463im, 0.36420457375571014 + 0.5235784686127289im, 0.531883979920564 + 0.7034735644682284im, 0.7500443094115281 + 0.9612053548664551im, 1.0612410507865202 + 1.3223708279218578im, 1.2154632046734721 + 1.7048988962925355im, 1.8556234007580341 + 2.2437573929973844im, 2.891191856550966 + 3.1140102214419576im, 4.213253106128079 + 4.483889088628243im, 5.747152586787458 + 6.01284811393025im, 7.352163708936412 + 7.770351222625782im, 9.652984589008142 + 10.27500211396812im, 11.970055852084016 + 14.27560461246188im], true, -1, 1, 0.3, 0.148365431821359, 0.0009809454014984833, 0.2658337070903717, 1.9296593, 0.029821537734289975, 0.0, 1.0, 1.0, 0, -1.0, 1.0, 1.0, 1.25, 18.0, 1.65, 0.3, 0.8896452200962354, 2.8058920740841784, 0.0, 1.0, -0.19752155788650919, 0.0, 3.3106313319155714, 1.6054967596315595, 0.39307251195418547, 0.21740011375976812, 0.7746695322421236, -0.05113765116526302, -0.2388377806334241, -0.0011605489188390146, 35.13388509054382, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.1, 0.0, 0.0, 2.0, 0.7, 1.0e-12)        else
-        end
-    end
+    # function InputTJLF{T}(inP::Bool) where {T<:Real}
+    #     if inP
+    #         new("CGYRO", false, false, false, true, false, true, true, true, true, false, 2, 3, 5, 21, 6, 4, 16, 12, 4, 3, 0, -1, [-1.0, 1.0, 6.0], [0.0002723125672605524, 1.0, 6.0], [0.9691383387573976, 1.078021414201318, 0.0733427635614379], [3.332037619158914, 2.0626412607995435, 2.0626412607995435], [1.0, 1.3661261082028286, 1.3661261082028286], [1.0, 0.8075398023805694, 0.030988644410732645], [0.30611236015079274, 0.30611236015079274, 0.30611236015079274], [1.5491649356389778, 1.5491649356389778, 1.5491649356389778], [1.65, 1.65, 1.65, 1.65, 0.9685467847385054, 0.7035623639735143, 0.6324554384084142, 0.591251466897806, 0.5250292077902518, 1.65, 1.65, 1.65, 1.65, 1.65, 1.65, 1.65, 1.551199191728457, 1.5603157485179238, 1.5643992899672103, 1.5643992899672103, 1.4832394778484315, 0.6324554384084142, 0.5390399200630244, 0.4845607815598427], [0.05994688615887238, 0.11989377231774476, 0.17984065847661712, 0.2397875446354895, 0.2997344307943619, 0.5395219754298515, 0.6594157477475961, 0.7793095200653409, 0.8992032923830857, 1.0190970647008304, 1.138990837018575, 1.25888460933632, 1.1989377231774476, 1.60763400555729, 2.1556474918269477, 2.890468908319081, 3.875777714879744, 5.196960552637156, 6.968510831252536, 9.343950702231606, 12.529135254288084, 16.80009186935815, 22.52694069387401, 30.205969167995068], ComplexF64[0.01903754432811539 - 0.03822460700618263im, 0.066744785730153 - 0.08638900959186772im, 0.12700366682079575 - 0.13466694388477374im, 0.17881630543473276 - 0.16774618757919235im, 0.21216108783162443 - 0.18009019917758487im, 0.33316817373508417 - 0.3198305942745321im, 0.34745089281285046 - 0.3955067169459169im, 0.3399817917167648 - 0.4616241685193869im, 0.3137572066001085 - 0.5077973469905399im, 0.28555930064941276 + 0.45333962118452586im, 0.34112248363191056 + 0.501904780504562im, 0.3914434522233301 + 0.5529917255055463im, 0.36420457375571014 + 0.5235784686127289im, 0.531883979920564 + 0.7034735644682284im, 0.7500443094115281 + 0.9612053548664551im, 1.0612410507865202 + 1.3223708279218578im, 1.2154632046734721 + 1.7048988962925355im, 1.8556234007580341 + 2.2437573929973844im, 2.891191856550966 + 3.1140102214419576im, 4.213253106128079 + 4.483889088628243im, 5.747152586787458 + 6.01284811393025im, 7.352163708936412 + 7.770351222625782im, 9.652984589008142 + 10.27500211396812im, 11.970055852084016 + 14.27560461246188im], true, -1, 1, 0.3, 0.148365431821359, 0.0009809454014984833, 0.2658337070903717, 1.9296593, 0.029821537734289975, 0.0, 1.0, 1.0, 0, -1.0, 1.0, 1.0, 1.25, 18.0, 1.65, 0.3, 0.8896452200962354, 2.8058920740841784, 0.0, 1.0, -0.19752155788650919, 0.0, 3.3106313319155714, 1.6054967596315595, 0.39307251195418547, 0.21740011375976812, 0.7746695322421236, -0.05113765116526302, -0.2388377806334241, -0.0011605489188390146, 35.13388509054382, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.1, 0.0, 0.0, 2.0, 0.7, 1.0e-12)        else
+    #     end
+    # end
 
     function InputTJLF{T}(ns::Int, nky::Int, dflt::Bool) where {T<:Real}
         if dflt
             new("GYRO",
             false,false,true,true,false,missing,true,false,true,false,
-            0,ns,2,21,4,4,32,nky,0,2,0,-1,
+            0,2,2,21,4,4,32,12,0,2,0,-1,
             fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),fill(NaN,(ns)),
             fill(NaN,(nky)),fill(NaN,(nky)),fill(NaN*im,(nky)),missing,
             1.0,1.0,0.3,0.0,0.0,0.0,1.0,0.0,0.0,1.0,
@@ -323,38 +307,38 @@ mutable struct InputTJLF{T<:Real}
         end
     end
 
-    function InputTJLF{T}(ns::Int, nky::Int) where {T<:Real}
-        InputTJLF{T}(ns, nky, false)
-    end
+    # function InputTJLF{T}(ns::Int, nky::Int) where {T<:Real}
+    #     InputTJLF{T}(ns, nky, false)
+    # end
 
     # create InputTJLF struct given a InputTGLF struct
-    function InputTJLF{T}(inputTGLF::InputTGLF) where {T<:Real}
+    # function InputTJLF{T}(inputTGLF::InputTGLF) where {T<:Real}
 
-        nky = get_ky_spectrum_size(inputTGLF.NKY,inputTGLF.KYGRID_MODEL)
-        inputTJLF = InputTJLF{T}(inputTGLF.NS, nky)
+    #     nky = get_ky_spectrum_size(inputTGLF.NKY,inputTGLF.KYGRID_MODEL)
+    #     inputTJLF = InputTJLF{T}(inputTGLF.NS, nky)
 
-        for fieldname in fieldnames(inputTGLF)
-            if occursin(r"\d", String(fieldname)) || fieldname == :_Qgb # species parameter
-                continue
-            end
-            setfield!(inputTJLF, fieldname, getfield(inputTGLF, fieldname))
-        end
-        for i in 1:inputTGLF.NS
-            inputTJLF.ZS[i] = getfield(inputTGLF, Symbol("ZS_", i))
-            inputTJLF.AS[i] = getfield(inputTGLF, Symbol("AS_", i))
-            inputTJLF.MASS[i] = getfield(inputTGLF, Symbol("MASS_", i))
-            inputTJLF.RLNS[i] = getfield(inputTGLF, Symbol("RLNS_", i))
-            inputTJLF.RLTS[i] = getfield(inputTGLF, Symbol("RLTS_", i))
-            inputTJLF.TAUS[i] = getfield(inputTGLF, Symbol("TAUS_", i))
-            inputTJLF.VPAR[i] = getfield(inputTGLF, Symbol("VPAR_", i))
-            inputTJLF.VPAR_SHEAR[i] = getfield(inputTGLF, Symbol("VPAR_SHEAR_", i))
-        end
-        inputTJLF.WIDTH_SPECTRUM .= inputTJLF.WIDTH
+    #     for fieldname in fieldnames(inputTGLF)
+    #         if occursin(r"\d", String(fieldname)) || fieldname == :_Qgb # species parameter
+    #             continue
+    #         end
+    #         setfield!(inputTJLF, fieldname, getfield(inputTGLF, fieldname))
+    #     end
+    #     for i in 1:inputTGLF.NS
+    #         inputTJLF.ZS[i] = getfield(inputTGLF, Symbol("ZS_", i))
+    #         inputTJLF.AS[i] = getfield(inputTGLF, Symbol("AS_", i))
+    #         inputTJLF.MASS[i] = getfield(inputTGLF, Symbol("MASS_", i))
+    #         inputTJLF.RLNS[i] = getfield(inputTGLF, Symbol("RLNS_", i))
+    #         inputTJLF.RLTS[i] = getfield(inputTGLF, Symbol("RLTS_", i))
+    #         inputTJLF.TAUS[i] = getfield(inputTGLF, Symbol("TAUS_", i))
+    #         inputTJLF.VPAR[i] = getfield(inputTGLF, Symbol("VPAR_", i))
+    #         inputTJLF.VPAR_SHEAR[i] = getfield(inputTGLF, Symbol("VPAR_SHEAR_", i))
+    #     end
+    #     inputTJLF.WIDTH_SPECTRUM .= inputTJLF.WIDTH
 
-        checkInput(inputTJLF)
+    #     checkInput(inputTJLF)
 
-        return inputTJLF
-    end
+    #     return inputTJLF
+    # end
 end
 
 mutable struct Options{T<:Real} # This acts as the interface module of Fortran, essentially. It reads the TGLFEP file
@@ -582,7 +566,8 @@ mutable struct profile{T<:Real}
     # As of right now, I don't believe there needs to be parameters, but the vectors
     # are probably the most of concern there. 
     function profile{T}(nr::Int, ns::Int) where (T<:Real)
-        new(NaN, NaN, nr, ns, 1, missing, fill(NaN, ns), fill(NaN, ns),
+        # new(NaN, NaN, nr, ns, 1, missing, fill(NaN, ns), fill(NaN, ns),
+        new(NaN, NaN, missing, missing, 1, missing, fill(NaN, ns), fill(NaN, ns),
         fill(NaN, (nr, ns)), fill(NaN, (nr, ns)), fill(NaN, (nr, ns)), fill(NaN, (nr, ns)), 
         fill(NaN, (nr, ns)), fill(NaN, (nr, ns)), fill(NaN, nr), fill(NaN, nr), fill(NaN, nr), 
         fill(NaN, nr), fill(NaN, nr), fill(NaN, nr), fill(NaN, nr), fill(NaN, nr), fill(NaN, nr), 

@@ -1,8 +1,9 @@
-function kwscale_scan(inputsEP::Options{Float64}, inputsPR::profile{Float64}, inputTJLF::InputTJLF{Float64}, printout::Bool = true)
+function kwscale_scan(inputsEP::Options{Float64}, inputsPR::profile{Float64}, printout::Bool = true)
     # These are for testing purposes:
     #baseDirectory = "/Users/benagnew/TJLF.jl/outputs/tglfep_tests/input.MTGLF"
     #inputsPR = readMTGLF(baseDirectory)
 
+    
     
 
     nfactor = 10
@@ -71,7 +72,7 @@ function kwscale_scan(inputsEP::Options{Float64}, inputsPR::profile{Float64}, in
     f_guess_mark = 1.0E20
     lkeep_ref = fill(false, (nkyhat, nefwid))
     # for scope purposes:
-   #          inputTJLF = InputTJLF{Float64}(inputsPR.NS, 12, true)   #If I do this early will it still work?
+    inputTJLF = InputTJLF{Float64}(inputsPR.NS, 12, true)
     imark_min = 0
     f_guess = fill(NaN, (nkyhat, nefwid))
     ikyhat_mark::Int64 = 0
@@ -233,7 +234,7 @@ function kwscale_scan(inputsEP::Options{Float64}, inputsPR::profile{Float64}, in
                 #println("============== Iter: ", i)
             end
 
-            gamma_out, freq_out, inputTJLF = TJLFEP_ky(inputsEP, inputsPR, str_wf_file, l_wavefunction_out, inputTJLF, printout)
+            gamma_out, freq_out, inputTJLF = TJLFEP_ky(inputsEP, inputsPR, str_wf_file, l_wavefunction_out, printout)
 
             #=if (id == 0 && inputsEP.IR == 201 && k == 1)
                 println("After ky: ", inputsEP.L_TH_PINCH, " : ", i, " : ", k, " : ", id)
@@ -778,7 +779,7 @@ function kwscale_scan(inputsEP::Options{Float64}, inputsPR::profile{Float64}, in
     # end
 
     # Return to the driver these values and the final growthrate values of the last scan.
-    return growthrate, inputsEP, inputsPR, inputTJLF
+    return growthrate, inputsEP, inputsPR
 
     # This function will be done for however many radii you are testing. These values do not interact in the driver. 
 end

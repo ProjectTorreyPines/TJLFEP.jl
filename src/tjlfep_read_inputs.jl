@@ -267,28 +267,40 @@ Outputs: InputTJLF struct ready for usage in running TJLF.
 #include("../tjlf-ep/TJLFEP.jl")
 #using .TJLFEP
 
-function TJLF_map(inputsEP::Options{Float64}, inputsPR::profile{Float64}, inputTJLF::InputTJLF{Float64})
-    # Set MODE_IN and KY_MODEL as in tjlf-ep branch
+function TJLF_map(inputsEP::Options{Float64}, inputsPR::profile{Float64})
+    # Access the fields like this:
+    # inputsOptions = inputsEP.Options
+    # profile = inputsEP.profile   
+     #=
+    # Temp Defs:
+    color = 0
+    kyhat_in = 3
+    # Temp Struct Inputs:
+    filename = "/Users/benagnew/TJLF.jl/outputs/tglfep_tests/input.MTGLF"
+    temp = readMTGLF(filename)
+    inputsPR = temp[1]
+    irexp2 = temp[2]
+    filename = "/Users/benagnew/gacode_add/sample-rundir_2/input.TGLFEP"
+    inputsEP = readTGLFEP(filename, irexp2)
+    inputsEP.IR = inputsEP.IR_EXP[color+1]
+    inputsEP.MODE_IN = 2
+    inputsEP.KY_MODEL = 3
+    =#
     inputsEP.MODE_IN = 2
     inputsEP.KY_MODEL = 3
 
-    # Validate radial index
-    if ismissing(inputsEP.IR) || ismissing(inputsPR.NR)
-        error("IR or NR is missing. IR=$(inputsEP.IR), NR=$(inputsPR.NR)")
-    end
+    # Okay finally I can do this lol:
+    inputTJLF = InputTJLF{Float64}(inputsPR.NS, 12, true) # It is being set to the default...
     if (inputsEP.IR < 1 || inputsEP.IR > inputsPR.NR)
         println("ir isn't within range")
         return 1
     end
+    inputTJLF.SIGN_BT = inputsPR.SIGN_BT
+    inputTJLF.SIGN_IT = inputsPR.SIGN_IT
 
-#Now all TJLF is coming from FUSE
+    inputTJLF.SAT_RULE = 0
 
-    # inputTJLF.SIGN_BT = inputsPR.SIGN_BT
-    # inputTJLF.SIGN_IT = inputsPR.SIGN_IT
-
-    # inputTJLF.SAT_RULE = 0
-
-    # inputTJLF.NS = inputsPR.NS
+    inputTJLF.NS = inputsPR.NS
     ns = inputsPR.NS
 
     is = inputsEP.IS_EP + 1
@@ -347,7 +359,6 @@ function TJLF_map(inputsEP::Options{Float64}, inputsPR::profile{Float64}, inputT
         # println(inputTJLF.AS)
         # println("======")
     end
-
     for i = 2:ns
         if (i != is)
             inputTJLF.AS[i] = inputsPR.A_QN*inputTJLF.AS[i]
@@ -445,9 +456,9 @@ function TJLF_map(inputsEP::Options{Float64}, inputsPR::profile{Float64}, inputT
     inputTJLF.ZEFF = inputsPR.ZEFF[ir]
 
 
-    # if (inputsEP.MODE_IN == 4)
-    #     inputTJLF.FILTER = 2.0
-    # end
+    if (inputsEP.MODE_IN == 4)
+        inputTJLF.FILTER = 2.0
+    end
 
     kym = inputsEP.KY_MODEL
     if (kym == 0)
@@ -462,10 +473,10 @@ function TJLF_map(inputsEP::Options{Float64}, inputsPR::profile{Float64}, inputT
     end
 
     # This is one of the only things that is ran to for inputTJLF:
-    inputsEP.FREQ_AE_UPPER = -abs(inputsPR.omegaGAM[ir])
+    inputsEP.FREQ_AE_UPPER = -abs(TJLFEP.exproConst.omegaGAM[ir])
     if inputsEP.ROTATIONAL_SUPPRESSION_FLAG == 1
-        inputsEP.GAMMA_THRESH_MAX = abs(inputsPR.gammap[ir]) * 2.0 * (min(1.0 - inputsPR.RMIN[ir], inputsPR.RMIN[ir]) / inputsPR.RMAJ[ir])
-        inputsEP.GAMMA_THRESH = 0.15 * abs(inputsPR.gammaE[ir] / inputsPR.SHEAR[ir])   # Bass PoP 2017 flow-shear suppression of AEs
+        inputsEP.GAMMA_THRESH_MAX = abs(TJLFEP.exproConst.gammap[ir]) * 2.0 * (min(1.0 - inputsPR.RMIN[ir], inputsPR.RMIN[ir]) / inputsPR.RMAJ[ir])
+        inputsEP.GAMMA_THRESH = 0.15 * abs(TJLFEP.exproConst.gammaE[ir] / inputsPR.SHEAR[ir])   # Bass PoP 2017 flow-shear suppression of AEs
         inputsEP.GAMMA_THRESH = min(inputsEP.GAMMA_THRESH, inputsEP.GAMMA_THRESH_MAX)
     else
         

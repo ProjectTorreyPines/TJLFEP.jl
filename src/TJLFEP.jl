@@ -3,21 +3,22 @@ using Base.Threads
 using LinearAlgebra # Don't really need this for tjlf-ep
 using SparseArrays
 using StaticArrays
+using TJLF
 
 include("tjlfep_modules.jl")
-include("conv_input.jl")  # Include early so TJLF is available
 include("tjlfep_read_inputs.jl")
-# include("EXPROconst.jl")
+include("EXPROconst.jl")
 include("tjlfep_ky.jl")
 include("tjlfep_kwscale_scan.jl")
 include("mainsub.jl")
+include("conv_input.jl")
 include("tjlfep_complete_output.jl")
 include("run_tjlfep.jl")
 
 include("tjlfep_generate_input.jl")
 
 #sgould this line just be the big struct?
-export InputTJLFEP, profile, Options
+export InputTJLFEP, profile, Options, InputTJLF
 export readMTGLF, readTGLFEP, TJLF_map, readEXPRO
 export convert_input, revert_input
 export tjlfep_complete_output

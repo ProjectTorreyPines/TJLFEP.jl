@@ -6,23 +6,27 @@ using Pkg
 # Pkg.add("StaticArrays")
 using Plots
 Pkg.activate("..")
+include("../../TJLF/src/TJLF.jl")
 include("TJLFEP.jl")
 using .TJLFEP
+using .TJLFEP: convert_input
+using .TJLFEP: revert_input
+using .TJLF
 using Base.Threads
 using LinearAlgebra
 using Dates
 BLAS.set_num_threads(1)
 begin
-    # homedirectory = pwd()
-    homedirectory = "/global/homes/w/whoffman/.julia/dev/TJLF/tjlf-ep"
+    homedirectory = pwd()
 
-    tglfepfilepath = homedirectory*"/../outputs/tjlfeptests/isEP3v6/input.TGLFEP"
-    mtglffilepath = homedirectory*"/../outputs/tjlfeptests/isEP3v6/input.MTGLF"
-    exprofilepath = homedirectory*"/../outputs/tjlfeptests/isEP3v6/input.EXPRO"
+    
+    tglfepfilepath = homedirectory*"/../../TJLF/outputs/tjlfeptests/isEP3v6/input.TGLFEP"
+    mtglffilepath = homedirectory*"/../../TJLF/outputs/tjlfeptests/isEP3v6/input.MTGLF"
+    exprofilepath = homedirectory*"/../../TJLF/outputs/tjlfeptests/isEP3v6/input.EXPRO"
 
     # tjlf_ep_input = TJLF_EP_Input(dd)    
 
-    TJLFEP.runTHD(tglfepfilepath, mtglffilepath, exprofilepath, printout = true)
+    runTHD(tglfepfilepath, mtglffilepath, exprofilepath, printout = true)
 end
 # I will now run runTHDs on two examples:
 #=

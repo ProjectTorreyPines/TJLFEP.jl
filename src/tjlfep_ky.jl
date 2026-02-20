@@ -4,7 +4,7 @@
 #using .TJLFEP: convert_input
 #using MPI
 
-function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_wf_file::String, l_wavefunction_out::Int, inputTJLF::InputTJLF{Float64}, printout::Bool = true) #, factor_in::Int64, kyhat_in::Int64, width_in::Int64)
+function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_wf_file::String, l_wavefunction_out::Int, printout::Bool = true) #, factor_in::Int64, kyhat_in::Int64, width_in::Int64)
 
     # Temp Defs:
     
@@ -23,7 +23,7 @@ function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_w
 
     #========================================#
 
-    inputTJLF = TJLF_map(inputsEP, inputsPR, inputTJLF)
+    inputTJLF = TJLF_map(inputsEP, inputsPR)
 
     #println("GradBFactor:")
     #println(inputTJLF.GRADB_FACTOR)
@@ -77,10 +77,7 @@ function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_w
     #println("inputTJLF: ")
     #println(typeof(inputTJLF))
 
-    ### NOW THAT WE BRINGING IN TJLF I DONT THINK WE NEED THE CONV / REVERSE INPUT
-    #convInput = convert_input(inputTJLFEP, inputTJLFEP.NS, inputTJLFEP.NKY)
-    
-    
+    convInput = convert_input(inputTJLF, inputTJLF.NS, inputTJLF.NKY)
     #println("convInput: ")
     #println(typeof(convInput))
 
@@ -125,10 +122,7 @@ function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_w
     #    println(convInput.WIDTH)
     #end
 
-    # Convert from TJLFEP.InputTJLF to TJLF.InputTJLF for compatibility
-    convInput = convert_input(inputTJLF, inputTJLF.NS, inputTJLF.NKY)
-
-    # Run TJLF with converted input
+    # Run TJLF and return QLweight and eigenvalues:
     gamma_out, freq_out, particle_QL_out, energy_QL_out, stress_par_QL_out, exchange_QL_out, field_weight_out, satParams, nmodes_out = TJLF.run(convInput)
 
 
@@ -137,9 +131,10 @@ function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_w
     #println(typeof(field_weight_out))
     #println(typeof(satParams.y))
 
-    # Convert back from TJLF.InputTJLF to TJLFEP.InputTJLF
+
     inputTJLF = revert_input(convInput, convInput.NS, convInput.NKY)
     
+
 
     # Next is the get_growthrate stuff. I now need to make sure that run_TJLF is giving me all the information I need to continue this.
 

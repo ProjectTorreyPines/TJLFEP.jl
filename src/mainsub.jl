@@ -1,4 +1,4 @@
-function mainsub(inputsEP::Options, inputsPR::profile, inputTJLFEP::InputTJLF, printout::Bool = true)
+function mainsub(inputsEP::Options, inputsPR::profile, printout::Bool = true)
     x = inputsEP.PROCESS_IN
     if (x == 1)
         msg = "No"
@@ -21,8 +21,7 @@ function mainsub(inputsEP::Options, inputsPR::profile, inputTJLFEP::InputTJLF, p
             #println(inputsEP.MODE_IN)
         end
 
-        growthrate, inputsEP, inputsPR, inputTJLF = kwscale_scan(inputsEP, inputsPR, inputTJLFEP, printout)
-        #If needed inputTJLF has been updated and returned to here.  But do not see a reason to bring it back to run
+        growthrate, inputsEP, inputsPR = kwscale_scan(inputsEP, inputsPR, printout)
         return growthrate, inputsEP, inputsPR
     elseif (x == 6)
         msg = "No"
