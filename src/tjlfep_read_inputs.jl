@@ -116,6 +116,52 @@ function readprofile(filename::String)
 end
 
 """
+makeStructs populates structs directly from dictionaries rather than files
+
+Inputs: dictionary
+
+Outputs: Options struct
+"""
+function makeStructs(ProfileFilename::String, OptionsDict::Dict{String, Any}, EXPROFilename::String)
+    # ProfileDict::Dict{String, Any}
+    # prof = profile{Float64}(ProfileDict["nr"], ProfileDict["ns"])
+    prof = readMTGLF(ProfileFilename)
+    profile = prof[1]
+    ir_exp = prof[2]
+
+    inputTJLFEP = Options{Float64}(OptionsDict["SCAN_N"], OptionsDict["WIDTH_IN_FLAG"], OptionsDict["nn"], OptionsDict["nr"], OptionsDict["jtscale_max"], OptionsDict["nmodes"])
+    
+    if (OptionsDict["KY_MODEL"] == 0)
+        inputTJLFEP.NTOROIDAL = 4
+    else
+        inputTJLFEP.NTOROIDAL = 3
+    end
+        
+    if (OptionsDict["PROCESS_IN"] == 4 || OptionsDict["PROCESS_IN"] == 5)
+        inputTJLFEP.NN = OptionsDict["nn"]
+    end
+
+    if (!OptionsDict["FACTOR_IN_PROFILE"])
+        inputTJLFEP.FACTOR = fill(OptionsDict["FACTOR_IN"], OptionsDict["SCAN_N"])
+    end
+    inputTJLFEP.FACTOR_MAX_PROFILE = inputTJLFEP.FACTOR
+
+    # populating other fields goes here
+    for key in keys(OptionsDict)
+        if hasfield(Options{Float64}, Symbol(key))
+            setfield!(inputTJLFEP, Symbol(key), OptionsDict[key])
+        end
+    end
+
+    inputTJLFEP.IR_EXP = ir_exp
+    inputTJLFEP.NMODES = OptionsDict["nmodes"]
+
+    params = readEXPRO(EXPROFilename, inputTJLFEP.IS_EP)
+    
+    return profile, inputTJLFEP, params, ir_exp
+end
+
+"""
 readTGLFEP extracts the values needed from the input.TGLFEP file
 
 Inputs: filename
@@ -168,15 +214,15 @@ function readTGLFEP(filename::String, ir_exp::Vector{Int64})
 
     # Now, nscan_in, widthin are assigned and ready.
 
-#=  # Assign nn:
-if ((process_in == 4) || (process_in == 5))
-    if (threshold_flag == 0)
-        nn = 5
-    else
-        nn = 15
+    #=  # Assign nn:
+    if ((process_in == 4) || (process_in == 5))
+        if (threshold_flag == 0)
+            nn = 5
+        else
+            nn = 15
+        end
     end
-end
-=#
+    =#
     # See TGLFEP_interface.f90:
     jtscale_max = 1
     nmodes = 4
@@ -207,6 +253,7 @@ end
         if line[2] ∈ vecFields 
             #if ()
             field = Symbol(line[2])
+            println("field: $field")
             getfield(inputTJLFEP, field) .= [parse(Float64,line[1])]
         else
             field = Symbol(line[2])
@@ -217,6 +264,7 @@ end
             else
                 val = parse(Float64, line[1])
             end
+            println("field: $field, val: $val")
 
             try
                 println("field: $field $(contains(string(field),"THETA_2_THRESH"))")

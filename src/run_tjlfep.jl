@@ -116,6 +116,11 @@ function runTHD(tglfepfilepath::String, mtglffilepath::String, exprofilepath::St
             ir = arrTGLFEP[i].IR
             str_r = lpad(string(ir), 3, '0')
             arrTGLFEP[i].SUFFIX = "_r"*str_r
+
+            println("size arrTGLFEP", size(arrTGLFEP))
+            println("size arrTGLFEP[i].FACTOR", size(arrTGLFEP[i].FACTOR))
+            println("arrTGLFEP[i].FACTOR", arrTGLFEP[i].FACTOR)
+
             arrTGLFEP[i].FACTOR_IN = arrTGLFEP[i].FACTOR[i]
             input1 = arrTGLFEP[i]
             input2 = arrMTGLF[i]
@@ -380,56 +385,50 @@ function runTHD(tglfepfilepath::String, mtglffilepath::String, exprofilepath::St
     return width, kymark_out, SFmin, dpdr_crit_out, dndr_crit_out
 end  # End of string-based runTHD
 
-function runTHD(inputTJLF::Vector{TJLF.InputTJLF}, Options::Options{Float64}, profile::profile{Float64}, printout::Bool=false)
+"""
+runTHD(tglfepfilepath::String, mtglffilepath::String, exprofilepath::String)
 
+inputs: tglfepfilepath, mtglffilepath, exprofilepath
 
-    homedir = pwd()
+inputs are used in the threads version of the TJLFEP code for a single run
+"""
+function runTHD(profile::profile{Float64}, Options::Options{Float64}, params::NTuple{9, Vector{Float64}}, ir_exp::Vector{Int64}; printout::Bool=false)
 
+    # Default values for EXPRO:
+    ni = TJLFEP.exproConst.ni
+    Ti = TJLFEP.exproConst.Ti
+    dlnnidr = TJLFEP.exproConst.dlnnidr
+    dlntidr = TJLFEP.exproConst.dlntidr
+    cs = TJLFEP.exproConst.cs
+    rmin_ex = TJLFEP.exproConst.rmin_ex
+    omegaGAM = TJLFEP.exproConst.omegaGAM
+    gammaE = TJLFEP.exproConst.gammaE
+    gammap = TJLFEP.exproConst.gammap
+    # These should be set from the working directory, but these test cases are good for now:
 
-    if (Options.IS_EP == 1)
-        Ni = profile.DENS_1
-        Ti = profile.TEMP_1
-        DLNNDR = profile.DLNNDR_1
-        DLNTDR = profile.DLNTDR_1
+    # Set up EXPRO constants:
+    ni, Ti, dlnnidr, dlntidr, cs, rmin_ex, gammaE, gammap, omegaGAM = params
 
-    elseif (Options.IS_EP == 2)
-        Ni = profile.DENS_2
-        Ti = profile.TEMP_2
-        DLNNDR = profile.DLNNDR_2
-        DLNTDR = profile.DLNTDR_2
-    elseif (Options.IS_EP == 3)
-        Ni = profile.DENS_3
-        Ti = profile.TEMP_3
-        DLNNDR = profile.DLNNDR_3
-        DLNTDR = profile.DLNTDR_3
-    elseif (Options.IS_EP == 4)
-        Ni = profile.DENS_4
-        Ti = profile.TEMP_4
-        DLNNDR = profile.DLNNDR_4
-        DLNTDR = profile.DLNTDR_4
-    else
-        println("InputTJLFoptions.IS_EP not within range. Check input.TGLFEP input")
-        return 1
-    end
-    cs= profile.CS
-    rmin_ex = profile.RMIN
-    gammaE =profile.gammaE
-    gammap =profile.gammap
-    omegaGAM = profile.omegaGAM
-    ir_exp::Vector{Int64} = []
-    #= if ir_exp is needed can be coded here=#
+    # profile.gammaE = gammaE
+    # profile.gamm_p = gammap
+    # profile.omegaGAM = omegaGAM
+
     dpdr_EP = fill(NaN, profile.NR)
     if (Options.INPUT_PROFILE_METHOD == 2)
         for i in eachindex(dpdr_EP)
-            dpdr_EP[i] = Ni[i]*Ti[i]*(DLNNDR[i]+DLNTDR[i])# This has some small changes from old main
-        end 
+            dpdr_EP[i] = ni[i]*Ti[i]*(dlnnidr[i]+dlntidr[i])# This has some small changes from old main
+        end
+        #println(Options.FACTOR)
+        println("ir_exp ",ir_exp)
         dpdr_EP_abs = abs.(dpdr_EP)
         dpdr_EP_max = maximum(dpdr_EP_abs)
         dpdr_EP_max_loc = argmax(dpdr_EP_abs)
-        n_at_max = Ni[dpdr_EP_max_loc]
+        n_at_max = ni[dpdr_EP_max_loc]
         if (Options.PROCESS_IN != 5)
             for ir = 1:Options.SCAN_N
-                Options.FACTOR = Options.FACTOR*dpdr_EP_max/dpdr_EP_abs[ir_exp[ir]]   
+                Options.FACTOR = Options.FACTOR*dpdr_EP_max/dpdr_EP_abs[ir_exp[ir]] 
+                println("dpdr_EP_abs[ir_exp[ir]]", dpdr_EP_abs[ir_exp[ir]])  
+                println("Options.FACTOR ",Options.FACTOR)
             end
         end
         Options.FACTOR_MAX_PROFILE .= Options.FACTOR
@@ -440,25 +439,9 @@ function runTHD(inputTJLF::Vector{TJLF.InputTJLF}, Options::Options{Float64}, pr
         Options.F_REAL .= (cs[:]/(rmin_ex[profile.NR]))/(2*pi*1.0e3)
     end
 
-    if (ky_model == 0)
-        Options.NTOROIDAL = 4
-    else
-        Options.NTOROIDAL = 3
-    end
-        #in actor now
-    # if (process_in == 4 || process_in == 5)
-    #     inputTJLFEP.NN = nn
-    #end
-    #
-    if (!Options.FACTOR_IN_PROFILE)
-        Options.FACTOR = fill(Options.FACTOR_IN, input_tjlf.Options.SCAN_N)
-    end
-    Options.FACTOR_MAX_PROFILE = Options.FACTOR
-
-
     if (Options.INPUT_PROFILE_METHOD == 2)
-    # Allotting Ir_exp not from inputTJLFEP.profileGLF.
-    Options.IR_EXP = fill(0, Options.SCAN_N)
+        # Allotting Ir_exp not from profile.
+        Options.IR_EXP = fill(0, Options.SCAN_N)
         for i = 1:Options.SCAN_N
             if (Options.SCAN_N != 1)
                 jr_exp = profile.IRS + floor((i-1)*(profile.NR-profile.IRS)/(Options.SCAN_N-1))
@@ -469,12 +452,6 @@ function runTHD(inputTJLF::Vector{TJLF.InputTJLF}, Options::Options{Float64}, pr
         end
     end
 
-
-    # Things that need to be set for the function of the driver:
-    # str_r & SUFFIX
-    # FACTOR_IN
-    # color & id (sort of)
-
     # deepcopy is required so as to avoid overwriting of data:
     n_ir = Options.SCAN_N
     Ts = fill(Options, n_ir)
@@ -483,36 +460,36 @@ function runTHD(inputTJLF::Vector{TJLF.InputTJLF}, Options::Options{Float64}, pr
         Ts[i] = deepcopy(Ts[i-1])
     end
     arrTGLFEP = Ts
-    arrPROF = fill(profile, n_ir)
+    arrMTGLF = fill(profile, n_ir)
     arrgrowth = fill(fill(NaN,(5, 10, 10, Options.NMODES)), n_ir)
 
     for i in 1:n_ir
-        println(inputTJLFEP[i])
         #try
-        arrTGLFEP[i].IR = arrTGLFEP[i].IR_EXP[i]
-        ir = arrTGLFEP[i].IR
-        str_r = lpad(string(ir), 3, '0')
-        arrTGLFEP[i].SUFFIX = "_r"*str_r
-        arrTGLFEP[i].FACTOR_IN = arrTGLFEP[i].FACTOR[i]
-        input1 = arrTGLFEP[i]
-        input2 = arrPROF[i]
-        arrgrowth[i], arrTGLFEP[i], arrPROF[i] = TJLFEP.mainsub(input1, input2, inputTJLFEP[i], printout)
+            arrTGLFEP[i].IR = arrTGLFEP[i].IR_EXP[i]
+            #println(arrTGLFEP[i].IR)
+            ir = arrTGLFEP[i].IR
+            str_r = lpad(string(ir), 3, '0')
+            arrTGLFEP[i].SUFFIX = "_r"*str_r
+
+            # println("size arrTGLFEP", size(arrTGLFEP))
+            # println("size arrTGLFEP[i].FACTOR", size(arrTGLFEP[i].FACTOR))
+            # println("arrTGLFEP[i].FACTOR", arrTGLFEP[i].FACTOR)
+
+            arrTGLFEP[i].FACTOR_IN = arrTGLFEP[i].FACTOR[i]
+            input1 = arrTGLFEP[i]
+            input2 = arrMTGLF[i]
+            arrgrowth[i], arrTGLFEP[i], arrMTGLF[i] = TJLFEP.mainsub(input1, input2, printout)
         #catch
         #end
     end
 
-    # Right now, width_in is being set directly from first entry from the TGLFEP input
-    # rather than some range of widths as TGLFEP does. This can be easily implemented but 
-    # most inputs won't need that for now.
-
-    #println(Options.WIDTH_IN, " for id & color ", id_world, " ", color)
-
+    # Print out basic information about the run (that is common to all radii):
+    Options = arrTGLFEP[1]
+    
     kymark_out::Vector{Float64} = fill(NaN, Options.SCAN_N)
     width::Vector{Float64} = fill(NaN, Options.SCAN_N)
-    #local buf_width::Vector{Float64} = fill(NaN, 1)
-    #local buf_kymark::Vector{Float64} = fill(NaN, 1)
 
-    if (Options.WIDTH_IN_FLAG)
+    if (!Options.WIDTH_IN_FLAG)
         # Non-MPI:
         # There are only "3" processes in Threads -- 
         for i = 1:n_ir
@@ -520,12 +497,9 @@ function runTHD(inputTJLF::Vector{TJLF.InputTJLF}, Options::Options{Float64}, pr
             kymark_out[i] = arrTGLFEP[i].KYMARK
             
         end
-
     end
 
-    # Print out basic information about the run (that is common to all radii):
-    Options = arrTGLFEP[1]
-    if (printout)printout
+    if (printout)
         io2 = open("out.TGLFEP", "w")
         println(io2, "process_in = ", Options.PROCESS_IN)
 
@@ -565,25 +539,12 @@ function runTHD(inputTJLF::Vector{TJLF.InputTJLF}, Options::Options{Float64}, pr
         if (!Options.WIDTH_IN_FLAG) println(io2, "width_min = ", Options.WIDTH_MIN, " width_max = ", Options.WIDTH_MAX) end
         close(io2)
     end
-
-    # Lastly is the printing of the density threshold:
-    #local buf_factor::Vector{Float64} = fill(NaN, 1)
-
+    
+    # Initialize output arrays
+    # kymark_out and width already defined above
+    
     # Now continue on to radii-dependent part:
     if ((Options.PROCESS_IN == 4) || (Options.PROCESS_IN == 5))
-        # Threads Process won't happen until later:
-
-
-        # Original MPI:
-        #=if (id_world < Options.SCAN_N && id_world != 0)
-            if (Options.THRESHOLD_FLAG == 0)
-                #buf_factor = [Options.FACTOR_IN]
-                MPI.Send([Options.FACTOR_IN], 0, id_world, MPI.COMM_WORLD)
-                #Options.FACTOR_IN = buf_factor[1]
-            end
-            #MPI.Send(Options) only process-In 4 here.
-        end # id == 0
-        MPI.Barrier(TJLFEP_COMM_IN)=#
         
         if (printout)
             io3 = open("out.TGLFEP", "a")
@@ -600,8 +561,6 @@ function runTHD(inputTJLF::Vector{TJLF.InputTJLF}, Options::Options{Float64}, pr
         dpdr_crit_out = fill(NaN, profile.NR)
 
         if (Options.THRESHOLD_FLAG == 0)
-            # Threads Correct:
-            # Set the returned guesses for "f_guess" as SFmin[i]:
             for i = 1:n_ir
                 SFmin[i] = arrTGLFEP[i].FACTOR_IN
             end
@@ -704,9 +663,9 @@ function runTHD(inputTJLF::Vector{TJLF.InputTJLF}, Options::Options{Float64}, pr
                     # If SFmin[i] is the default or >= 9k, check if it is one of the factor_max_profile ones, and if so, calculate it with that.
                     # otherwise, leave it at 10k.
                     if (SFmin[i] < 9000.0)
-                        dndr_crit[i] = SFmin[i]*Ni[Int(Options.IR_EXP[i])]*dlnnidr[Int(Options.IR_EXP[i])]
+                        dndr_crit[i] = SFmin[i]*ni[Int(Options.IR_EXP[i])]*dlnnidr[Int(Options.IR_EXP[i])]
                     elseif ((i < ir_min-Options.IRS+1) || (i > ir_max-Options.IRS+1))
-                        dndr_crit[i] = Options.FACTOR_MAX_PROFILE[i]*Ni[Int(Options.IR_EXP[i])]*dlnnidr[Int(Options.IR_EXP[i])]
+                        dndr_crit[i] = Options.FACTOR_MAX_PROFILE[i]*ni[Int(Options.IR_EXP[i])]*dlnnidr[Int(Options.IR_EXP[i])]
                     end
                 end
                 # Interpolate and accept are reject needed values of this profile:
@@ -722,7 +681,7 @@ function runTHD(inputTJLF::Vector{TJLF.InputTJLF}, Options::Options{Float64}, pr
 
             if (Options.INPUT_PROFILE_METHOD == 2)
                 dpdr_crit .= 10000.0
-                dpdr_EP[:] .= Ni[:].*Ti[:].*(dlnnidr[:].+dlntidr[:]).*0.16022
+                dpdr_EP[:] .= ni[:].*Ti[:].*(dlnnidr[:].+dlntidr[:]).*0.16022
                 for i = 1:Options.SCAN_N
                     if (SFmin[i] < 9000.0)
                         if ((Options.PROCESS_IN == 4) || (Options.PROCESS_IN == 5))
@@ -777,47 +736,8 @@ function runTHD(inputTJLF::Vector{TJLF.InputTJLF}, Options::Options{Float64}, pr
         close(io3)
     end
 
-    #MPI.Finalize()
-    # The rest of the fortran is deallocations and a process_in == 6 route
-
-    # Checking out some info:
-    # @profview TJLFEP.mainsub(Options, profile, TJLFEP_COMM_IN)
-    # using BenchmarkTools
-    # @btime TJLFEP.mainsub(Options, profile, TJLFEP_COMM_IN)
-    # The following list is for unpopulated fields and things I want to look into today:
-    # inputTJLFEP.USE_AVE_ION_GRID
-    # inputTJLFEP.WIDTH_SPECTRUM
-    # inputTJLFEP.FIND_EIGEN
-    # inputTJLFEPRLNP_CUTOFF
-    # inputTJLFEP.BETA_LOC
-    # inputTJLFEP.DAMP_PSI
-    # inputTJLFEP.DAMP_SIG
-    # inputTJLFEP.WDIA_TRAPPED
-
-    #ADD whatever terms you want to output into a dictionary for analysis
-
-    TJLFEPoutput = Dict{String, Any}(
-        "width" => width,
-        "kymark_out" => kymark_out,
-        "SFmin" => SFmin,
-        "dpdr_crit_out" => dpdr_crit_out,
-        "dndr_crit_out" => dndr_crit_out
-    )
-    graph = true
-    if (graph)
-        x_value1 = range(1, stop=profile.NR, length = dict_out["dpdr_crit_out"])
-        x_value2 = range(1, stop=profile.NR, length = dict_out["dndr_crit_out"])
-
-        # First plot for the "Fortran" dataset
-        plot(x_value1, dict_out["dpdr_crit_out"], xlabel="Radius", ylabel="dp/dr", 
-        title="Critical Pressure Gradient", legend=:topright, linewidth=2, linestyle=:solid)
-
-        # Second plot for the "Julia" dataset
-        plot(x_value2, dict_out["dndr_crit_out"], xlabel="Radius", ylabel="dn/dr", 
-        title="Critical Density Gradient", legend=:topright, linewidth=2, linestyle=:solid)
-    end
-    return TJLFEPoutput
-end
+    return width, kymark_out, SFmin, dpdr_crit_out, dndr_crit_out
+end  # End of struct-based runTHD
 
 #=
 """

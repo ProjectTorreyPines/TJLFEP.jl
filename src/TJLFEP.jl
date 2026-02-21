@@ -18,7 +18,7 @@ include("run_tjlfep.jl")
 include("tjlfep_generate_input.jl")
 
 #sgould this line just be the big struct?
-export InputTJLFEP, profile, Options, InputTJLF
+export InputTJLFEP, profile, Options, InputTJLF, makeStructs
 export readMTGLF, readTGLFEP, TJLF_map, readEXPRO
 export convert_input, revert_input
 export tjlfep_complete_output
