@@ -1,17 +1,17 @@
 using Revise
 using Pkg
-# Pkg.add("Revise")
-# using Revise
-# Pkg.add("Plots")
-# Pkg.add("StaticArrays")
 using Plots
 Pkg.activate("..")
-include("../../TJLF/src/TJLF.jl")
+# println("Post activate, pre instantiate")
+# include("../../TJLF/src/TJLF.jl")
+# println("Post instantiate, pre include")
 include("TJLFEP.jl")
+# Pkg.instantiate()
+println("Post include")
 using .TJLFEP
 using .TJLFEP: convert_input
 using .TJLFEP: revert_input
-using .TJLF
+using TJLF
 using Base.Threads
 using LinearAlgebra
 using Dates
@@ -20,9 +20,9 @@ begin
     homedirectory = pwd()
 
     
-    tglfepfilepath = homedirectory*"/../../TJLF/outputs/tjlfeptests/isEP3v6/input.TGLFEP"
-    mtglffilepath = homedirectory*"/../../TJLF/outputs/tjlfeptests/isEP3v6/input.MTGLF"
-    exprofilepath = homedirectory*"/../../TJLF/outputs/tjlfeptests/isEP3v6/input.EXPRO"
+    tglfepfilepath = homedirectory*"/../tests/tglfep_tests/input.TGLFEP"
+    mtglffilepath = homedirectory*"/../tests/tglfep_tests/input.MTGLF"
+    exprofilepath = homedirectory*"/../tests/tglfep_tests/input.EXPRO"
 
     # tjlf_ep_input = TJLF_EP_Input(dd)    
 

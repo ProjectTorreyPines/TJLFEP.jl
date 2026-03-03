@@ -117,9 +117,6 @@ function runTHD(tglfepfilepath::String, mtglffilepath::String, exprofilepath::St
             str_r = lpad(string(ir), 3, '0')
             arrTGLFEP[i].SUFFIX = "_r"*str_r
 
-            println("size arrTGLFEP", size(arrTGLFEP))
-            println("size arrTGLFEP[i].FACTOR", size(arrTGLFEP[i].FACTOR))
-            println("arrTGLFEP[i].FACTOR", arrTGLFEP[i].FACTOR)
 
             arrTGLFEP[i].FACTOR_IN = arrTGLFEP[i].FACTOR[i]
             input1 = arrTGLFEP[i]

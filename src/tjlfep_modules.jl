@@ -584,12 +584,12 @@ mutable struct profile{T<:Real}
     end
 end
 
-# mutable struct InputTJLFEP{T<:Real}
-#     InputTJLF::InputTJLF
-#     Options::Options
-#     profile::profile
+mutable struct InputTJLFEP{T<:Real}
+    InputTJLF::InputTJLF
+    Options::Options
+    profile::profile
 
-#     function InputTJLFEP()
-#     end
-#end
+    # function InputTJLFEP()
+    # end
+end
 
