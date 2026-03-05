@@ -6,7 +6,7 @@ Pkg.activate("..")
 # include("../../TJLF/src/TJLF.jl")
 # println("Post instantiate, pre include")
 include("TJLFEP.jl")
-# Pkg.instantiate()
+Pkg.instantiate()
 println("Post include")
 using .TJLFEP
 using .TJLFEP: convert_input
@@ -15,6 +15,7 @@ using TJLF
 using Base.Threads
 using LinearAlgebra
 using Dates
+Pkg.status()
 BLAS.set_num_threads(1)
 begin
     homedirectory = pwd()
