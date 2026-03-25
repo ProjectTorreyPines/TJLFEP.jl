@@ -36,7 +36,7 @@ iEPexist::Bool = false
 iMPexist::Bool = false
 iEXPexist::Bool = false
 
-println(homedir)
+# println(homedir)
 
 iEPexist = isfile(homedir*"/input.TGLFEP")
 iMPexist = isfile(homedir*"/input.MTGLF")

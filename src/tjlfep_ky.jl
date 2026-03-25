@@ -4,9 +4,9 @@
 #using .TJLFEP: convert_input
 #using MPI
 
-function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_wf_file::String, l_wavefunction_out::Int, printout::Bool = true;
-                   eigen_cache::Union{Vector{ComplexF64}, Nothing} = nothing) #, factor_in::Int64, kyhat_in::Int64, width_in::Int64)
-
+# function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_wf_file::String, l_wavefunction_out::Int, printout::Bool = true;
+#                    eigen_cache::Union{Vector{ComplexF64}, Nothing} = nothing) #, factor_in::Int64, kyhat_in::Int64, width_in::Int64)
+function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_wf_file::String, l_wavefunction_out::Int, printout::Bool = true) #, factor_in::Int64, kyhat_in::Int64, width_in::Int64)
     # Temp Defs:
     
     #color = 0
@@ -80,9 +80,11 @@ function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_w
 
     convInput = convert_input(inputTJLF, inputTJLF.NS, inputTJLF.NKY)
     # Seed EIGEN_SPECTRUM from cache so KrylovKit can be used instead of full geev!
-    if eigen_cache !== nothing && !ismissing(convInput.EIGEN_SPECTRUM) && length(eigen_cache) == length(convInput.EIGEN_SPECTRUM)
-        convInput.EIGEN_SPECTRUM .= eigen_cache
-    end
+    
+    # if eigen_cache !== nothing && !ismissing(convInput.EIGEN_SPECTRUM) && length(eigen_cache) == length(convInput.EIGEN_SPECTRUM)
+    #     convInput.EIGEN_SPECTRUM .= eigen_cache
+    # end
+
     #println("convInput: ")
     #println(typeof(convInput))
 
@@ -128,14 +130,14 @@ function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_w
     #end
 
     # Run TJLF and return QLweight and eigenvalues:
-    result = TJLF.run(convInput)
+    result = TJLF.run(convInput);
     gamma_out        = result.eigenvalue[:, 1, 1]   # [nmodes], ky=1
     freq_out         = result.eigenvalue[:, 1, 2]   # [nmodes], ky=1
     particle_QL_out  = result.QL_weights[:, :, :, 1, 1]  # [fields, species, nmodes], ky=1
     energy_QL_out    = result.QL_weights[:, :, :, 1, 2]  # [fields, species, nmodes], ky=1
     field_weight_out = result.field_weight_out[:, :, :, 1]  # [fields, basis, nmodes], ky=1
-    satParams        = TJLF.get_sat_params(convInput)
-    eigen_out        = ismissing(convInput.EIGEN_SPECTRUM) ? nothing : copy(convInput.EIGEN_SPECTRUM)  # cache for next call
+    satParams        = TJLF.get_sat_params(convInput);
+    # eigen_out        = ismissing(convInput.EIGEN_SPECTRUM) ? nothing : copy(convInput.EIGEN_SPECTRUM)  # cache for next call
 
 
 
@@ -412,11 +414,12 @@ function TJLFEP_ky(inputsEP::Options{Float64}, inputsPR::profile{Float64}, str_w
             #        wave_write[kcomp] = imag(wavefunction[n,jfields,i])
             #    end
             #end
-            println(io6, angle[i], " ", real(wavefunction[n_out,1,i]), " ", imag(wavefunction[n_out,1,i]), " ",
-                    real(wavefunction[n_out,2,i]), " ", imag(wavefunction[n_out,2,i]))
+            # println(io6, angle[i], " ", real(wavefunction[n_out,1,i]), " ", imag(wavefunction[n_out,1,i]), " ",
+                    # real(wavefunction[n_out,2,i]), " ", imag(wavefunction[n_out,2,i]))
         end
         close(io6)
     end      
     # This is the end of ky.jl. Returning values will likely need to be changed later.
-    return gamma_out, freq_out, inputTJLF, eigen_out
+    # return gamma_out, freq_out, inputTJLF, eigen_out
+    return gamma_out, freq_out, inputTJLF
 end

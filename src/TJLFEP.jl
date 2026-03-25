@@ -20,8 +20,8 @@ include("run_tjlfep.jl")
 
 include("tjlfep_generate_input.jl")
 
-include("tglf_(context).jl")
-include("tglf_actor_(context).jl")
+include("context.jl")
+include("actor_context.jl")
 
 #sgould this line just be the big struct?
 export profile, Options, InputTJLF, makeStructs
@@ -33,6 +33,6 @@ export runTHD, runTHDs
 export TJLFEP_generate_input, readline_values
 
 export InputTGLFEP
-export populate_tjlfep_profile!
+export populate_tjlfep_profile!, update_input_tjlfep!
 
 end 

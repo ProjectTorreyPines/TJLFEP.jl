@@ -116,52 +116,6 @@ function readprofile(filename::String)
 end
 
 """
-makeStructs populates structs directly from dictionaries rather than files
-
-Inputs: dictionary
-
-Outputs: Options struct
-"""
-function makeStructs(ProfileFilename::String, OptionsDict::Dict{String, Any}, EXPROFilename::String)
-    # ProfileDict::Dict{String, Any}
-    # prof = profile{Float64}(ProfileDict["nr"], ProfileDict["ns"])
-    prof = readMTGLF(ProfileFilename)
-    profile = prof[1]
-    ir_exp = prof[2]
-
-    inputTJLFEP = Options{Float64}(OptionsDict["SCAN_N"], OptionsDict["WIDTH_IN_FLAG"], OptionsDict["nn"], OptionsDict["nr"], OptionsDict["jtscale_max"], OptionsDict["nmodes"])
-    
-    if (OptionsDict["KY_MODEL"] == 0)
-        inputTJLFEP.NTOROIDAL = 4
-    else
-        inputTJLFEP.NTOROIDAL = 3
-    end
-        
-    if (OptionsDict["PROCESS_IN"] == 4 || OptionsDict["PROCESS_IN"] == 5)
-        inputTJLFEP.NN = OptionsDict["nn"]
-    end
-
-    if (!OptionsDict["FACTOR_IN_PROFILE"])
-        inputTJLFEP.FACTOR = fill(OptionsDict["FACTOR_IN"], OptionsDict["SCAN_N"])
-    end
-    inputTJLFEP.FACTOR_MAX_PROFILE = inputTJLFEP.FACTOR
-
-    # populating other fields goes here
-    for key in keys(OptionsDict)
-        if hasfield(Options{Float64}, Symbol(key))
-            setfield!(inputTJLFEP, Symbol(key), OptionsDict[key])
-        end
-    end
-
-    inputTJLFEP.IR_EXP = ir_exp
-    inputTJLFEP.NMODES = OptionsDict["nmodes"]
-
-    params = readEXPRO(EXPROFilename, inputTJLFEP.IS_EP)
-    
-    return profile, inputTJLFEP, params, ir_exp
-end
-
-"""
 readTGLFEP extracts the values needed from the input.TGLFEP file
 
 Inputs: filename
@@ -264,7 +218,7 @@ function readTGLFEP(filename::String, ir_exp::Vector{Int64})
             else
                 val = parse(Float64, line[1])
             end
-            println("field: $field, val: $val")
+            # println("field: $field, val: $val")
 
             try
                 println("field: $field $(contains(string(field),"THETA_2_THRESH"))")
@@ -348,22 +302,46 @@ function TJLF_map(inputsEP::Options{Float64}, inputsPR::profile{Float64})
 
     inputTJLF.SAT_RULE = 0
 
+    # println("============================================================================================")
+    # println("TJLF MAP PRINTS")
+    # println("============================================================================================")
+
     inputTJLF.NS = inputsPR.NS
     ns = inputsPR.NS
+    # println("ns = ", ns)
 
     is = inputsEP.IS_EP + 1
     inputsPR.IS = is
     ir = inputsEP.IR
+    # println("is = ", is)
+    # println("ir = ", ir)
 
     #TJLF deletes GEOMETRY_FLAG so this is redundant:
     #inputTJLF.GEOMETRY_FLAG = inputsEP.GEOMETRY_FLAG
-
-    inputTJLF.ZS = inputsPR.ZS
+    inputTJLF.ZS = inputsPR.ZS[ir, :]
+    # println("input ZS: ", inputTJLF.ZS)
     inputTJLF.MASS = inputsPR.MASS
+    # println("input MASS: ", inputsPR.MASS)
     inputTJLF.AS = inputsPR.AS[ir, :] # Check read_inputs for these
+    # println("input AS: ", inputsPR.AS[ir, :])
     inputTJLF.TAUS = inputsPR.TAUS[ir, :]
-    
+    # println("input TAUS: ", inputsPR.TAUS[ir, :])
+    # Prevent 0/0 = NaN in matrix (pol = sum(zs^2 * as/taus)) for zero-density
+    # fast species where both AS=0 and TAUS=0. AS=0 already zeroes contribution.
+    for i in 1:ns
+        if inputTJLF.TAUS[i] <= 0.0
+            inputTJLF.TAUS[i] = 1.0 # species w/ TAUS=0 will have AS=0, so setting to 1 doesn't affect physics
+        end
+    end
+
     inputTJLF.ZS[1] = -1.0
+    # Prevent ZS=0 for zero-density fast species: ZS=0 → bb=taus*mass*(ky/0)²=Inf
+    # → FLR_Hn(Inf)=0 → all-zero hn matrix → SingularException in inv()
+    for i in 2:ns
+        if inputTJLF.ZS[i] == 0.0
+            inputTJLF.ZS[i] = 1.0  # placeholder; AS=0 already nullifies contribution
+        end
+    end
     
     inputsEP.FACTOR_MAX = 0.5*1.0/(inputTJLF.ZS[is]*inputsPR.AS[ir, is])
     if (inputsEP.SCAN_METHOD == 2)
@@ -417,6 +395,9 @@ function TJLF_map(inputsEP::Options{Float64}, inputsPR::profile{Float64})
     
     #println("is, FACTOR_MAX, FACTOR_IN, sum0, AS:")
     #println(is, " ", inputsEP.FACTOR_MAX, " ", inputsEP.FACTOR_IN, " ", sum0, " ", inputTJLF.AS)
+
+    # println("PR RLNS: ", inputsPR.RLNS)
+    # println("PR RLTS: ", inputsPR.RLTS)
 
     if (inputsEP.MODE_IN == 2) # EP drive only
         for i = 1:ns
@@ -522,9 +503,12 @@ function TJLF_map(inputsEP::Options{Float64}, inputsPR::profile{Float64})
 
     # This is one of the only things that is ran to for inputTJLF:
     inputsEP.FREQ_AE_UPPER = -abs(TJLFEP.exproConst.omegaGAM[ir])
+    # inputsEP.FREQ_AE_UPPER = -abs(InputsPR.omegaGAM[ir])
     if inputsEP.ROTATIONAL_SUPPRESSION_FLAG == 1
         inputsEP.GAMMA_THRESH_MAX = abs(TJLFEP.exproConst.gammap[ir]) * 2.0 * (min(1.0 - inputsPR.RMIN[ir], inputsPR.RMIN[ir]) / inputsPR.RMAJ[ir])
+        # inputsEP.GAMMA_THRESH_MAX = abs(InputsPR.gammap[ir]) * 2.0 * (min(1.0 - inputsPR.RMIN[ir], inputsPR.RMIN[ir]) / inputsPR.RMAJ[ir])
         inputsEP.GAMMA_THRESH = 0.15 * abs(TJLFEP.exproConst.gammaE[ir] / inputsPR.SHEAR[ir])   # Bass PoP 2017 flow-shear suppression of AEs
+        # inputsEP.GAMMA_THRESH = 0.15 * abs(InputsPR.gammaE[ir] / inputsPR.SHEAR[ir])   # Bass PoP 2017 flow-shear suppression of AEs
         inputsEP.GAMMA_THRESH = min(inputsEP.GAMMA_THRESH, inputsEP.GAMMA_THRESH_MAX)
     else
         

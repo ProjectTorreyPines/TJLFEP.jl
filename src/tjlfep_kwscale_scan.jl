@@ -72,7 +72,7 @@ function kwscale_scan(inputsEP::Options{Float64}, inputsPR::profile{Float64}, pr
     f_guess_mark = 1.0E20
     lkeep_ref = fill(false, (nkyhat, nefwid))
     # for scope purposes:
-    inputTJLF = InputTJLF{Float64}(inputsPR.NS, 12, true)
+    inputTJLF = TJLFEP.InputTJLF{Float64}(inputsPR.NS, 12, true)
     imark_min = 0
     f_guess = fill(NaN, (nkyhat, nefwid))
     ikyhat_mark::Int64 = 0
@@ -124,7 +124,7 @@ function kwscale_scan(inputsEP::Options{Float64}, inputsPR::profile{Float64}, pr
         end=#
         # Threads:
         #=Threads.@threads=#
-        eigen_cache = nothing  # reset each round; seeded from previous ky call within round
+        # eigen_cache = nothing  # reset each round; seeded from previous ky call within round
         for i = 1:nkwf
             l_wavefunction_out = 0
 
@@ -235,7 +235,8 @@ function kwscale_scan(inputsEP::Options{Float64}, inputsPR::profile{Float64}, pr
                 #println("============== Iter: ", i)
             end
 
-            gamma_out, freq_out, inputTJLF, eigen_cache = TJLFEP_ky(inputsEP, inputsPR, str_wf_file, l_wavefunction_out, printout; eigen_cache)
+            # gamma_out, freq_out, inputTJLF, eigen_cache = TJLFEP_ky(inputsEP, inputsPR, str_wf_file, l_wavefunction_out, printout; eigen_cache)
+            gamma_out, freq_out, inputTJLF = TJLFEP_ky(inputsEP, inputsPR, str_wf_file, l_wavefunction_out, printout)
 
             #=if (id == 0 && inputsEP.IR == 201 && k == 1)
                 println("After ky: ", inputsEP.L_TH_PINCH, " : ", i, " : ", k, " : ", id)

@@ -46,6 +46,7 @@ function runTHD(tglfepfilepath::String, mtglffilepath::String, exprofilepath::St
     # Set up profile struct:
     prof = TJLFEP.readMTGLF(inputMPfile)
     profile = prof[1]
+    println("profile ZS are ", profile.ZS)
     # println("this is input mtglf",profile)
     ir_exp = prof[2]
     # println("this is ir_exp",prof[2])
@@ -126,8 +127,7 @@ function runTHD(tglfepfilepath::String, mtglffilepath::String, exprofilepath::St
         #end
     end
 
-    # Print out basic information about the run (that is common to all radii):
-    Options = arrTGLFEP[1]
+    # Options = arrTGLFEP[1]
     
     kymark_out::Vector{Float64} = fill(NaN, Options.SCAN_N)
     width::Vector{Float64} = fill(NaN, Options.SCAN_N)
@@ -142,6 +142,7 @@ function runTHD(tglfepfilepath::String, mtglffilepath::String, exprofilepath::St
         end
     end
 
+    Options = arrTGLFEP[1]
     if (printout)
         io2 = open("out.TGLFEP", "w")
         println(io2, "process_in = ", Options.PROCESS_IN)
@@ -389,7 +390,7 @@ inputs: tglfepfilepath, mtglffilepath, exprofilepath
 
 inputs are used in the threads version of the TJLFEP code for a single run
 """
-function runTHD(profile::profile{Float64}, Options::Options{Float64}, params::NTuple{9, Vector{Float64}}, ir_exp::Vector{Int64}; printout::Bool=false)
+function runTHD(dd::IMAS.dd, rho::AbstractVector{Float64}, OptionsDict::Dict{String, Any}; printout::Bool=false)
 
     # Default values for EXPRO:
     ni = TJLFEP.exproConst.ni
@@ -403,15 +404,86 @@ function runTHD(profile::profile{Float64}, Options::Options{Float64}, params::NT
     gammap = TJLFEP.exproConst.gammap
     # These should be set from the working directory, but these test cases are good for now:
 
-    # Set up EXPRO constants:
-    ni, Ti, dlnnidr, dlntidr, cs, rmin_ex, gammaE, gammap, omegaGAM = params
+    input_tglfep, extraEP = TJLFEP.InputTGLFEP(dd, rho)
 
-    # profile.gammaE = gammaE
-    # profile.gamm_p = gammap
-    # profile.omegaGAM = omegaGAM
+    # println("===============================================================")
+    # println("ZS and AS ")
+    # println(input_tglfep.ZS_1)
+    # println(input_tglfep.AS_1)
+    # println(input_tglfep.ZS_2)
+    # println(input_tglfep.AS_2)
+    # println(input_tglfep.ZS_3)
+    # println(input_tglfep.AS_3)
+    # println(input_tglfep.ZS_4)
+    # println(input_tglfep.AS_4)
+    # println(input_tglfep.ZS_5)
+    # println(input_tglfep.AS_5)
+    # println(input_tglfep.ZS_6)
+    # println(input_tglfep.AS_6)
+    # println(input_tglfep.ZS_7)
+    # println(input_tglfep.AS_7)
+    # println("===============================================================")
+
+    # The profile should have 4 species: electrons, ion 1, ion 2, EP
+    # extraEP["NS"] now includes the EP as the 4th species
+    prof = TJLFEP.profile{Float64}(extraEP["NR"], extraEP["NS"])
+    profile = TJLFEP.populate_tjlfep_profile!(prof, extraEP, input_tglfep, extraEP["NR"], extraEP["NS"])
+
+    Options = TJLFEP.Options{Float64}(OptionsDict["SCAN_N"], OptionsDict["WIDTH_IN_FLAG"], OptionsDict["nn"], extraEP["NR"], OptionsDict["jtscale_max"], OptionsDict["nmodes"])
+
+    if (OptionsDict["KY_MODEL"] == 0)
+        Options.NTOROIDAL = 4
+    else
+        Options.NTOROIDAL = 3
+    end
+        
+    if (OptionsDict["PROCESS_IN"] == 4 || OptionsDict["PROCESS_IN"] == 5)
+        Options.NN = OptionsDict["nn"]
+    end
+
+    if (!OptionsDict["FACTOR_IN_PROFILE"])
+        Options.FACTOR = fill(OptionsDict["FACTOR_IN"], OptionsDict["SCAN_N"])
+    end
+    Options.FACTOR_MAX_PROFILE = Options.FACTOR
+
+    # populating other fields goes here
+    for key in keys(OptionsDict)
+        if hasfield(typeof(Options), Symbol(key))
+            setfield!(Options, Symbol(key), OptionsDict[key])
+        end
+    end
+
+    Options.IR_EXP = fill(0, Options.SCAN_N)
+    Options.NMODES = OptionsDict["nmodes"]
+
+    ns = Options.IS_EP
+    println("ns = ", ns)
+    # Set up EXPRO constants:
+    ni = extraEP["DENS_$ns"]
+    Ti = extraEP["TEMP_$ns"]
+    dlnnidr = extraEP["DLNNDR_$ns"]
+    dlntidr = extraEP["DLNTDR_$ns"]
+    cs = extraEP["CS"]
+    rmin_ex = extraEP["RMIN"]
+    gammaE = extraEP["gammaE"]
+    gammap = extraEP["gammap"]
+    omegaGAM = extraEP["omegaGAM"]
 
     dpdr_EP = fill(NaN, profile.NR)
+    Options.IR_EXP = fill(0, Options.SCAN_N)
     if (Options.INPUT_PROFILE_METHOD == 2)
+        # Allotting Ir_exp not from profile.
+        Options.IR_EXP = fill(0, Options.SCAN_N)
+        for i = 1:Options.SCAN_N
+            if (Options.SCAN_N != 1)
+                jr_exp = profile.IRS + floor((i-1)*(profile.NR-profile.IRS)/(Options.SCAN_N-1))
+            else
+                jr_exp = profile.IRS
+            end
+            Options.IR_EXP[i] = jr_exp
+        end
+
+        ir_exp = Options.IR_EXP
         for i in eachindex(dpdr_EP)
             dpdr_EP[i] = ni[i]*Ti[i]*(dlnnidr[i]+dlntidr[i])# This has some small changes from old main
         end
@@ -436,18 +508,18 @@ function runTHD(profile::profile{Float64}, Options::Options{Float64}, params::NT
         Options.F_REAL .= (cs[:]/(rmin_ex[profile.NR]))/(2*pi*1.0e3)
     end
 
-    if (Options.INPUT_PROFILE_METHOD == 2)
-        # Allotting Ir_exp not from profile.
-        Options.IR_EXP = fill(0, Options.SCAN_N)
-        for i = 1:Options.SCAN_N
-            if (Options.SCAN_N != 1)
-                jr_exp = profile.IRS + floor((i-1)*(profile.NR-profile.IRS)/(Options.SCAN_N-1))
-            else
-                jr_exp = profile.IRS
-            end
-            Options.IR_EXP[i] = jr_exp
-        end
-    end
+    # if (Options.INPUT_PROFILE_METHOD == 2)
+    #     # Allotting Ir_exp not from profile.
+    #     Options.IR_EXP = fill(0, Options.SCAN_N)
+    #     for i = 1:Options.SCAN_N
+    #         if (Options.SCAN_N != 1)
+    #             jr_exp = profile.IRS + floor((i-1)*(profile.NR-profile.IRS)/(Options.SCAN_N-1))
+    #         else
+    #             jr_exp = profile.IRS
+    #         end
+    #         Options.IR_EXP[i] = jr_exp
+    #     end
+    # end
 
     # deepcopy is required so as to avoid overwriting of data:
     n_ir = Options.SCAN_N
@@ -459,6 +531,8 @@ function runTHD(profile::profile{Float64}, Options::Options{Float64}, params::NT
     arrTGLFEP = Ts
     arrMTGLF = fill(profile, n_ir)
     arrgrowth = fill(fill(NaN,(5, 10, 10, Options.NMODES)), n_ir)
+
+    println("arrMTGLF is ", size(arrMTGLF))
 
     for i in 1:n_ir
         #try
@@ -475,10 +549,22 @@ function runTHD(profile::profile{Float64}, Options::Options{Float64}, params::NT
             arrTGLFEP[i].FACTOR_IN = arrTGLFEP[i].FACTOR[i]
             input1 = arrTGLFEP[i]
             input2 = arrMTGLF[i]
+
+            println("=============================================================")
+            println("pre mainsub prints")
+            println("i is ", i)
+            # println("input2 is ", size(input2))
+            println("=============================================================")
+
+            # println("input1 = inputEP = Options", input1)
+            # println("input2 RLNS = inputPR", input2.RLNS)
+
             arrgrowth[i], arrTGLFEP[i], arrMTGLF[i] = TJLFEP.mainsub(input1, input2, printout)
         #catch
         #end
     end
+
+    println("arrgrowth is ", size(arrgrowth), arrgrowth)
 
     # Print out basic information about the run (that is common to all radii):
     Options = arrTGLFEP[1]
