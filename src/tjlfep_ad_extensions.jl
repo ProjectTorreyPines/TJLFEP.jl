@@ -147,9 +147,8 @@ end
 # internally. The wavefunction shape is independent of the differentiated
 # parameters, so extracting .value is exact (no information lost).
 #
-# NOTE: No type annotation on `src` — inside TJLFEP the type is seen as
-# TJLFEP.TJLF.InputTJLF{D}, not TJLF.InputTJLF{D}, so dispatch on the latter
-# signature would never match. Runtime isa checks work regardless of prefix.
+# NOTE: `src` may be either TJLFEP.InputTJLF or TJLF.InputTJLF; no type
+# annotation so both are accepted. Runtime field copy works for either.
 function _to_float64_input(src)
     dst = TJLF.InputTJLF{Float64}(src.NS, src.NKY)
     for fn in fieldnames(typeof(src))

@@ -83,13 +83,14 @@ function tjlfep_complete_output(profile_in::Vector{T}, inputsEP::Options{S}, inp
         end
     end
 
-    # Find the maximum index for imark.
-    # If all radii were rejected, return 1.
-    ir_counter_max = max(1, ir_counter)
+    # No accepted radii: skip Fortran interpolation (ir_mark stays 0; avoid 0-based indexing).
+    if ir_counter == 0
+        return profile_in, profile_out, 0, 0, l_accept_profile
+    end
 
-    # Set min and max values of accepted radii; if none were accepted,
-    # they will both be 0. If only one was accepted, they will both be
-    # that radius.
+    ir_counter_max = ir_counter
+
+    # Set min and max values of accepted radii.
     ir_min = ir_mark[1]
     ir_max = ir_mark[ir_counter_max]
 

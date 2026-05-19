@@ -116,10 +116,205 @@ function readMTGLF(filename::String)
     return inputMTGLF, irexp
 end
 """
-readprofile is meant for the input.profile method of insertion
-"""
-function readprofile(filename::String)
+    read_input_profile(filename::String) -> profile
 
+Read Fortran/GACODE `input.profile` or `dump.profile` (fixed columns, NR radial points).
+"""
+function read_input_profile(filename::String)
+    lines = readlines(filename)
+    @assert length(lines) >= 5 "profile file too short: $filename"
+
+    sign_bt = parse(Float64, strip(split(lines[1])[1]))
+    sign_it = parse(Float64, strip(split(lines[2])[1]))
+    nr = parse(Int, strip(split(lines[3])[1]))
+    ns = parse(Int, strip(split(lines[4])[1]))
+    geometry_flag = parse(Int, strip(split(lines[5])[1]))
+
+    prof = profile{Float64}(nr, ns)
+    prof.SIGN_BT = sign_bt
+    prof.SIGN_IT = sign_it
+    prof.NR = nr
+    prof.NS = ns
+    prof.GEOMETRY_FLAG = geometry_flag
+    prof.ROTATION_FLAG = 0  # matches Fortran EXPRO path (rotation_flag = 0)
+    prof.ZS = fill(NaN, nr, ns)
+    prof.MASS = fill(NaN, ns)
+    prof.AS = fill(NaN, nr, ns)
+    prof.TAUS = fill(NaN, nr, ns)
+    prof.RLNS = fill(NaN, nr, ns)
+    prof.RLTS = fill(NaN, nr, ns)
+    prof.VPAR = zeros(nr, ns)
+    prof.VPAR_SHEAR = zeros(nr, ns)
+    prof.AS[:, 1] .= 1.0
+    prof.TAUS[:, 1] .= 1.0
+
+    function read_floats!(target, i0::Int)
+        vals = Float64[]
+        i = i0
+        while i <= length(lines) && length(vals) < nr
+            s = strip(lines[i])
+            i += 1
+            isempty(s) && continue
+            startswith(s, "#") && continue
+            startswith(s, "---") && continue
+            x = tryparse(Float64, s)
+            x === nothing && continue
+            push!(vals, x)
+        end
+        @assert length(vals) == nr "expected $nr values near line $i0 in $filename, got $(length(vals))"
+        target .= vals
+        return i
+    end
+
+    ispecies = 0
+    i = 6
+    while i <= length(lines)
+        s = strip(lines[i])
+        if startswith(s, "# electron species")
+            ispecies = 1
+            i += 1
+            prof.ZS[:, 1] .= parse(Float64, strip(split(lines[i])[1]))
+            prof.MASS[1] = parse(Float64, strip(split(lines[i + 1])[1]))
+            i += 2
+            continue
+        elseif startswith(s, "# ion species")
+            ispecies += 1
+            i += 1
+            prof.ZS[:, ispecies] .= parse(Float64, strip(split(strip(lines[i]))[1]))
+            prof.MASS[ispecies] = parse(Float64, strip(split(strip(lines[i + 1]))[1]))
+            i += 2
+            continue
+        elseif startswith(s, "# Geometry")
+            ispecies = 0
+            i += 1
+            continue
+        elseif startswith(s, "#") && ispecies > 0
+            i += 1
+            if occursin("density: as", s)
+                i = read_floats!(view(prof.AS, :, ispecies), i)
+            elseif occursin("temperature: taus", s)
+                i = read_floats!(view(prof.TAUS, :, ispecies), i)
+            elseif occursin("density gradients: rlns", s)
+                i = read_floats!(view(prof.RLNS, :, ispecies), i)
+            elseif occursin("temperature gradients: rlts", s)
+                i = read_floats!(view(prof.RLTS, :, ispecies), i)
+            end
+            continue
+        elseif startswith(s, "#") && ispecies == 0
+            i += 1
+            if occursin("minor radius: rmin", s)
+                i = read_floats!(prof.RMIN, i)
+            elseif occursin("major radius: rmaj", s)
+                i = read_floats!(prof.RMAJ, i)
+            elseif occursin("safety factor: q", s)
+                i = read_floats!(prof.Q, i)
+            elseif occursin("magnetic shear: shear", s)
+                i = read_floats!(prof.SHEAR, i)
+            elseif occursin("q_prime", s)
+                i = read_floats!(prof.Q_PRIME, i)
+            elseif occursin("p_prime", s)
+                i = read_floats!(prof.P_PRIME, i)
+            elseif occursin("shift", s)
+                i = read_floats!(prof.SHIFT, i)
+            elseif occursin("elogation: kappa", s)
+                i = read_floats!(prof.KAPPA, i)
+            elseif occursin("shear in elogation: s_kappa", s)
+                i = read_floats!(prof.S_KAPPA, i)
+            elseif occursin("triangularity: delta", s)
+                i = read_floats!(prof.DELTA, i)
+            elseif occursin("shear in triangularity: s_delta", s)
+                i = read_floats!(prof.S_DELTA, i)
+            elseif occursin("squareness: zeta", s)
+                i = read_floats!(prof.ZETA, i)
+            elseif occursin("shear in squareness: s_zeta", s)
+                i = read_floats!(prof.S_ZETA, i)
+            elseif occursin("effective ion charge: zeff", s)
+                i = read_floats!(prof.ZEFF, i)
+            elseif occursin("betae", s)
+                i = read_floats!(prof.BETAE, i)
+            end
+            continue
+        end
+        i += 1
+    end
+
+    prof.gammaE = fill(1.0e-7, nr)
+    prof.gammap = fill(1.0e-7, nr)
+    prof.omegaGAM = similar(prof.RMAJ, nr)
+    for ir in 1:nr
+        prof.omegaGAM[ir] = (1.0 / prof.RMAJ[ir]) * sqrt(1.0 + prof.TAUS[ir, 2]) / (1.0 + 1.0 / (2.0 * prof.Q[ir]))
+    end
+    prof.RHO_STAR = fill(0.001, nr)
+    prof.OMEGA_TAE = sqrt.(2.0 ./ prof.BETAE) ./ 2.0 ./ prof.Q ./ prof.RMAJ
+    prof.B_UNIT = fill(1.0, nr)
+    prof.IRS = 2
+    prof.N_ION = max(ns - 1, 1)
+    return prof
+end
+
+readprofile(filename::String) = read_input_profile(filename)
+
+"""Map GACODE `is_EP` (ions only) to EXPRO species index when species 1 is electron."""
+expro_species_for_gacode_is_ep(is_EP::Integer) = is_EP + 1
+
+"""Build EXPRO dict for `save_EXPRO` from a `profile` (3-species Fortran layout)."""
+function expro_dict_from_profile(prof::profile)
+    nr, ns = prof.NR, prof.NS
+    a_m = prof.RMIN[end]
+    extraEP = Dict{String, Any}("NR" => nr, "NS" => ns)
+    for is in 1:ns
+        extraEP["DENS_$is"] = copy(prof.AS[:, is])
+        extraEP["TEMP_$is"] = copy(prof.TAUS[:, is])
+        # Fortran: EXPRO_dlnnidr = RLNS/a_m (TGLFEP_read_EXPRO.f90); not raw TGLF RLNS.
+        extraEP["DLNNDR_$is"] = prof.RLNS[:, is] ./ a_m
+        extraEP["DLNTDR_$is"] = prof.RLTS[:, is] ./ a_m
+    end
+    extraEP["CS"] = fill(1.0e7, nr)
+    extraEP["RMIN"] = copy(prof.RMIN)
+    extraEP["gammaE"] = copy(prof.gammaE)
+    extraEP["gammap"] = copy(prof.gammap)
+    extraEP["omegaGAM"] = copy(prof.omegaGAM)
+    return extraEP
+end
+
+function ir_exp_from_scan(nr::Int, irs::Int, scan_n::Int)
+    ir_exp = Vector{Int}(undef, scan_n)
+    for i in 1:scan_n
+        if scan_n != 1
+            ir_exp[i] = irs + floor(Int, (i - 1) * (nr - irs) / (scan_n - 1))
+        else
+            ir_exp[i] = irs
+        end
+    end
+    return ir_exp
+end
+
+"""Write `input.MTGLF`, `input.EXPRO` from Fortran `dump.profile` + `input.TGLFEP`."""
+function setup_fortran_file_inputs(case_dir::AbstractString, out_dir::AbstractString;
+        tglfep_file::Union{Nothing,String}=nothing)
+    profile_file = joinpath(case_dir, "dump.profile")
+    tglfep_file = something(tglfep_file, joinpath(case_dir, "input.TGLFEP"))
+    @assert isfile(profile_file) "missing $profile_file"
+    @assert isfile(tglfep_file) "missing $tglfep_file"
+    mkpath(out_dir)
+
+    prof = read_input_profile(profile_file)
+    opts = readTGLFEP(tglfep_file, Int[])
+    prof.IRS = opts.IRS
+    prof.N_ION = opts.N_ION
+    ir_exp = ir_exp_from_scan(prof.NR, prof.IRS, opts.SCAN_N)
+
+    prof.ROTATION_FLAG = coalesce(prof.ROTATION_FLAG, 0)
+    save_MTGLF(prof, ir_exp, joinpath(out_dir, "input.MTGLF"))
+    save_EXPRO(expro_dict_from_profile(prof), joinpath(out_dir, "input.EXPRO"))
+    dest_tglfep = joinpath(out_dir, "input.TGLFEP")
+    if abspath(tglfep_file) != abspath(dest_tglfep)
+        if isfile(dest_tglfep) || islink(dest_tglfep)
+            rm(dest_tglfep; force=true)
+        end
+        symlink(abspath(tglfep_file), dest_tglfep)
+    end
+    return prof, ir_exp
 end
 
 """
@@ -359,11 +554,6 @@ function TJLF_map(inputsEP::Options{T}, inputsPR::profile{T}) where {T<:Real}
         inputsEP.FACTOR_IN = inputsEP.FACTOR_MAX
     end
 
-    # Trying to correct for rounding point errors:
-    # e.g. 0.1000000001 -> 0.1
-
-    inputsEP.FACTOR_IN = round(100000*inputsEP.FACTOR_IN)/100000
-
     # Factor_in is used to scale only the ion after the energetic species:
     if (inputsEP.SCAN_METHOD == 1)
         inputTJLF.AS[is] = inputsPR.AS[ir, is]*inputsEP.FACTOR_IN
@@ -422,11 +612,14 @@ function TJLF_map(inputsEP::Options{T}, inputsPR::profile{T}) where {T<:Real}
 
     # Geometry: TJLF can only recognize GEOMETRY_FLAG == 1 so I will skip geoflag == 0 for now
 
-    if (inputsPR.GEOMETRY_FLAG == 0)
+    geometry_flag = coalesce(inputsPR.GEOMETRY_FLAG, 1)
+    if geometry_flag == 0
         
     end
-    if (inputsPR.GEOMETRY_FLAG == 1)
-        inputTJLF.RMIN_LOC = inputsPR.RMIN[ir] / inputsPR.RMIN[end]  # normalize to r/a (dimensionless); RMIN stored in m in FUSE path, r/a in file-based path
+    if geometry_flag == 1
+        # Fortran read_EXPRO sets rmin(:)=EXPRO_rmin/a_meters before tglf_map; FUSE stores RMIN in metres.
+        r_over_a = inputsPR.RMIN[ir] / inputsPR.RMIN[end]
+        inputTJLF.RMIN_LOC = r_over_a
         inputTJLF.RMAJ_LOC = inputsPR.RMAJ[ir]
         inputTJLF.ZMAJ_LOC = 0.0
         inputTJLF.DRMAJDX_LOC = inputsPR.SHIFT[ir]
@@ -472,7 +665,7 @@ function TJLF_map(inputsEP::Options{T}, inputsPR::profile{T}) where {T<:Real}
         
     end
 
-    if (inputsPR.ROTATION_FLAG == 1)
+    if coalesce(inputsPR.ROTATION_FLAG, 0) == 1
         for i = 1:ns
             inputTJLF.VPAR[i] = inputsPR.VPAR[ir, i]
             inputTJLF.VPAR_SHEAR[i] = inputsPR.VPAR_SHEAR[ir, i]
@@ -512,8 +705,8 @@ function TJLF_map(inputsEP::Options{T}, inputsPR::profile{T}) where {T<:Real}
 
     # This is one of the only things that is ran to for inputTJLF:
     inputsEP.FREQ_AE_UPPER = -abs(inputsPR.omegaGAM[ir])
-    if inputsEP.ROTATIONAL_SUPPRESSION_FLAG == 1
-        inputsEP.GAMMA_THRESH_MAX = abs(inputsPR.gammap[ir]) * 2.0 * (min(1.0 - inputsPR.RMIN[ir], inputsPR.RMIN[ir]) / inputsPR.RMAJ[ir])
+    if coalesce(inputsEP.ROTATIONAL_SUPPRESSION_FLAG, 0) == 1
+        inputsEP.GAMMA_THRESH_MAX = abs(inputsPR.gammap[ir]) * 2.0 * (min(1.0 - r_over_a, r_over_a) / inputsPR.RMAJ[ir])
         inputsEP.GAMMA_THRESH = 0.15 * abs(inputsPR.gammaE[ir] / inputsPR.SHEAR[ir])   # Bass PoP 2017 flow-shear suppression of AEs
         inputsEP.GAMMA_THRESH = min(inputsEP.GAMMA_THRESH, inputsEP.GAMMA_THRESH_MAX)
     else
@@ -522,11 +715,202 @@ function TJLF_map(inputsEP::Options{T}, inputsPR::profile{T}) where {T<:Real}
         # inputsEP.GAMMA_THRESH_MAX = 1.0e-7
     end
 
+    debug_dump_tglf_map(inputsEP, inputsPR, inputTJLF)
     return inputTJLF
 end
 """
+    read_gacode_scalar_field(path, field, nr) -> Vector{Float64}
+
+Read a single-column GACODE `dump.gacode` block (`ne`, `te`, `rmin`, …).
+"""
+function read_gacode_scalar_field(path::AbstractString, field::AbstractString, nr::Integer)
+    lines = readlines(path)
+    header = "# $field |"
+    start_i = findfirst(l -> startswith(strip(l), header), lines)
+    start_i === nothing && error("block $header not found in $path")
+    vals = fill(NaN, nr)
+    for line in lines[(start_i + 1):end]
+        s = strip(line)
+        isempty(s) && continue
+        startswith(s, "#") && break
+        parts = split(s)
+        length(parts) < 2 && continue
+        ir = parse(Int, parts[1])
+        1 <= ir <= nr || continue
+        vals[ir] = parse(Float64, parts[2])
+    end
+    any(isnan, vals) && error("incomplete $field in $path")
+    return vals
+end
+
+"""
+    expro_bound_deriv(f, r) -> Vector{Float64}
+
+Match GACODE `expro_util.f90::bound_deriv` (Lagrange derivative on uniform radial grid).
+"""
+function expro_bound_deriv(f::AbstractVector{<:Real}, r::AbstractVector{<:Real})
+    n = length(f)
+    n == length(r) || error("expro_bound_deriv: length(f)=$(length(f)) != length(r)=$(length(r))")
+    df = Vector{Float64}(undef, n)
+    f = Float64.(f)
+    r = Float64.(r)
+    for i in 1:n
+        if i == 1
+            ra, r1, r2, r3 = r[1], r[1], r[2], r[3]
+            f1, f2, f3 = f[1], f[2], f[3]
+        elseif i == n
+            ra, r1, r2, r3 = r[n], r[n - 2], r[n - 1], r[n]
+            f1, f2, f3 = f[n - 2], f[n - 1], f[n]
+        else
+            ra, r1, r2, r3 = r[i], r[i - 1], r[i], r[i + 1]
+            f1, f2, f3 = f[i - 1], f[i], f[i + 1]
+        end
+        df[i] = ((ra - r1) + (ra - r2)) / (r3 - r1) / (r3 - r2) * f3 +
+                ((ra - r1) + (ra - r3)) / (r2 - r1) / (r2 - r3) * f2 +
+                ((ra - r2) + (ra - r3)) / (r1 - r2) / (r1 - r3) * f1
+    end
+    return df
+end
+
+"""`dlnnidr = -d(ln n)/dr` and `dlntidr = -d(ln T)/dr` as in `expro_compute_derived`."""
+function expro_log_gradients(ni::AbstractVector, ti::AbstractVector, rmin::AbstractVector)
+    nr = length(ni)
+    length(ti) == nr == length(rmin) || error("ni/ti/rmin length mismatch")
+    eps_n = 1.0e-30
+    dlnnidr = expro_bound_deriv(-log.(max.(ni, eps_n)), rmin)
+    dlntidr = expro_bound_deriv(-log.(max.(ti, eps_n)), rmin)
+    return dlnnidr, dlntidr
+end
+
+"""
+    read_gacode_ion_field(path, field, ion_index, nr) -> Vector{Float64}
+
+Read one radial column from a GACODE `dump.gacode` block (`ni`, `ti`, …).
+`ion_index` is 1..nion (GACODE ion index, not EXPRO species).
+"""
+function read_gacode_ion_field(path::AbstractString, field::AbstractString, ion_index::Integer, nr::Integer)
+    lines = readlines(path)
+    header = "# $field |"
+    # Require "|" so "# nion" does not match field "ni".
+    start_i = findfirst(l -> startswith(strip(l), header), lines)
+    start_i === nothing && error("block $header not found in $path")
+    vals = fill(NaN, nr)
+    for line in lines[(start_i + 1):end]
+        s = strip(line)
+        isempty(s) && continue
+        startswith(s, "#") && break
+        parts = split(s)
+        length(parts) < ion_index + 1 && continue
+        ir = parse(Int, parts[1])
+        1 <= ir <= nr || continue
+        vals[ir] = parse(Float64, parts[ion_index + 1])
+    end
+    if any(isnan, vals)
+        error("incomplete $field ion $ion_index in $path")
+    end
+    return vals
+end
+
+"""
+    read_expro_for_alpha(expro_file, prof, is_EP_gacode; gacode_file=nothing)
+
+EXPRO vectors for α post-processing matching Fortran `TGLFEP_read_EXPRO`:
+
+- GACODE `is_EP` → fast-ion column in `dump.gacode` (`ni`, `ti` in 10^19/m^3 and keV).
+- `dlnnidr`, `dlntidr` from `expro_bound_deriv(-log(n), rmin)` (not profile `RLNS`).
+- `max(dlnnidr, 1.0)` on the EP species only.
+"""
+function read_expro_for_alpha(
+    expro_file::AbstractString,
+    prof::profile,
+    is_EP_gacode::Integer;
+    gacode_file::Union{Nothing,String} = nothing,
+)
+    nr = prof.NR
+    a_m = prof.RMIN[end]
+    expro_is = expro_species_for_gacode_is_ep(is_EP_gacode)
+    1 <= expro_is <= prof.NS || error("is_EP=$is_EP_gacode -> EXPRO species $expro_is out of range NS=$(prof.NS)")
+
+    _, _Ti, _, _, cs, rmin_ex, gammaE, gammap, omegaGAM =
+        readEXPRO(expro_file, expro_is)
+
+    if gacode_file !== nothing && isfile(gacode_file)
+        rmin = read_gacode_scalar_field(gacode_file, "rmin", nr)
+        ne = read_gacode_scalar_field(gacode_file, "ne", nr)
+        ni = read_gacode_ion_field(gacode_file, "ni", is_EP_gacode, nr)
+        Ti = read_gacode_ion_field(gacode_file, "ti", is_EP_gacode, nr)
+        # Fortran AS(is_EP+1) = EXPRO_ni(is_EP)/EXPRO_ne; use for cross-check only.
+        as_norm = ni ./ max.(ne, 1.0e-30)
+        max_rel_as = maximum(abs.(as_norm .- prof.AS[:, expro_is]) ./ max.(abs.(prof.AS[:, expro_is]), 1.0e-30))
+        if max_rel_as > 0.05
+            @debug "ni/ne vs profile AS mismatch" max_rel_as is_EP_gacode expro_is
+        end
+        dlnnidr, dlntidr = expro_log_gradients(ni, Ti, rmin)
+        @. dlnnidr = max(dlnnidr, 1.0)
+        rmin_ex = rmin
+    else
+        if gacode_file !== nothing && !isfile(gacode_file)
+            @warn "gacode_file not found, using profile AS/RLNS for α inputs" gacode_file
+        end
+        ni = prof.AS[:, expro_is]
+        Ti = prof.TAUS[:, expro_is]
+        dlnnidr = max.(prof.RLNS[:, expro_is] ./ a_m, 1.0)
+        dlntidr = prof.RLTS[:, expro_is] ./ a_m
+    end
+    return ni, Ti, dlnnidr, dlntidr, cs, rmin_ex, gammaE, gammap, omegaGAM
+end
+
+"""
+    compute_alpha_crit_profiles(SFmin, Options, profile, ni, Ti, dlnnidr, dlntidr)
+
+Recompute `alpha_dndr_crit` / `alpha_dpdr_crit` profiles from converged `SFmin` (same logic as `run_tjlfep_file`).
+"""
+function compute_alpha_crit_profiles(
+    SFmin::AbstractVector{<:Real},
+    Options::Options{T},
+    profile::profile{T},
+    ni::AbstractVector,
+    Ti::AbstractVector,
+    dlnnidr::AbstractVector,
+    dlntidr::AbstractVector,
+) where {T<:Real}
+    scan_n = Options.SCAN_N
+    nr = profile.NR
+    length(SFmin) >= scan_n || error("SFmin length $(length(SFmin)) < SCAN_N=$scan_n")
+
+    dndr_crit = fill(10000.0, scan_n)
+    dpdr_crit = fill(10000.0, scan_n)
+    dpdr_EP = Vector{Float64}(undef, nr)
+    for i in 1:nr
+        dpdr_EP[i] = ni[i] * Ti[i] * (dlnnidr[i] + dlntidr[i]) * 0.16022
+    end
+
+    for i in 1:scan_n
+        ir = Int(Options.IR_EXP[i])
+        if SFmin[i] < 9000.0
+            dndr_crit[i] = SFmin[i] * ni[ir] * dlnnidr[ir]
+            if Options.SCAN_METHOD == 1
+                dpdr_scale = SFmin[i]
+            elseif Options.SCAN_METHOD == 2
+                denom = dlnnidr[ir] + dlntidr[ir]
+                dpdr_scale = denom == 0 ? SFmin[i] :
+                    (SFmin[i] * dlnnidr[ir] + dlntidr[ir]) / denom
+            else
+                dpdr_scale = SFmin[i]
+            end
+            dpdr_crit[i] = dpdr_scale * dpdr_EP[ir]
+        end
+    end
+
+    _, dndr_out, _, _, _ = tjlfep_complete_output(dndr_crit, Options, profile)
+    _, dpdr_out, _, _, _ = tjlfep_complete_output(dpdr_crit, Options, profile)
+    return dndr_out, dpdr_out
+end
+
+"""
 readEXPRO function is a temporary function just used to define any EXPRO constants that are needed.
-It is not going to be used in driver or mainsub or such.
+`is_EP` here is the **EXPRO species index** (1-based, including electron as species 1 in file layout).
+For GACODE energetic-ion index use `read_expro_for_alpha` instead.
 """
 function readEXPRO(filename::String, is_EP::Int64)
     #filename = "/Users/benagnew/TJLF.jl/outputs/tglfep_tests/input.EXPRO"
@@ -618,14 +1002,19 @@ function readEXPRO(filename::String, is_EP::Int64)
     end
 
     # Diverge 4 is_EP values for each quatnity:
+    # Match Fortran TGLFEP_read_EXPRO.f90: floor EP (dn/dr)/n at 1.0 m⁻¹ for α profiles.
 
     if (is_EP == 1)
+        @. dlnnidr1 = max(dlnnidr1, 1.0)
         return ni1, Ti1, dlnnidr1, dlntidr1, cs, rmin_ex, gammaE, gammap, omegaGAM
     elseif (is_EP == 2)
+        @. dlnnidr2 = max(dlnnidr2, 1.0)
         return ni2, Ti2, dlnnidr2, dlntidr2, cs, rmin_ex, gammaE, gammap, omegaGAM
     elseif (is_EP == 3)
+        @. dlnnidr3 = max(dlnnidr3, 1.0)
         return ni3, Ti3, dlnnidr3, dlntidr3, cs, rmin_ex, gammaE, gammap, omegaGAM
     elseif (is_EP == 4)
+        @. dlnnidr4 = max(dlnnidr4, 1.0)
         return ni4, Ti4, dlnnidr4, dlntidr4, cs, rmin_ex, gammaE, gammap, omegaGAM
     else
         println("is_EP not within range. Check input.TGLFEP input")

@@ -1,22 +1,10 @@
-using Revise
-#println("Including: ", abspath("../../TJLF/src/TJLF.jl"))
-include(joinpath(@__DIR__, "../../TJLF/src/TJLF.jl"))
-using Plots
-using Base.Threads
-Threads.nthreads()
-using LinearAlgebra
-BLAS.set_num_threads(1)
-
 """
-convert_input is meant for corrected for the type-discrepancy in TJLF and TJLFEP. They are identical, but Julia cannot see that yet.
+    convert_input(input, ns, nky)
 
-inputs: TJLFEP.InputTJLF{Float64} struct
-
-outputs: Main.TJLF.InputTJLF{Float64} struct of the same values
+Copy `TJLFEP.InputTJLF` → `TJLF.InputTJLF` (separate types with identical fields).
 """
-function convert_input(input::TJLFEP.InputTJLF{T}, ns::Int64, nky::Int64) where {T<:Real}
-    # Extract relevant fields from InputTJLF{T} and construct Main.TJLF.InputTJLF{T}
-    new_input = Main.TJLFEP.TJLF.InputTJLF{T}(ns, nky)
+function convert_input(input::InputTJLF{T}, ns::Int, nky::Int) where {T<:Real}
+    new_input = TJLF.InputTJLF{T}(ns, nky)
     new_input.UNITS = input.UNITS
     new_input.USE_BPER = input.USE_BPER
     new_input.USE_BPAR = input.USE_BPAR
@@ -105,8 +93,13 @@ function convert_input(input::TJLFEP.InputTJLF{T}, ns::Int64, nky::Int64) where 
     return new_input
 end
 
-function revert_input(input::TJLFEP.TJLF.InputTJLF{T}, ns::Int64, nky::Int64) where {T<:Real}
-    new_input = Main.TJLFEP.InputTJLF{T}(ns, nky, false)
+"""
+    revert_input(input, ns, nky)
+
+Copy `TJLF.InputTJLF` → `TJLFEP.InputTJLF`.
+"""
+function revert_input(input::TJLF.InputTJLF{T}, ns::Int, nky::Int) where {T<:Real}
+    new_input = InputTJLF{T}(ns, nky, false)
     new_input.UNITS = input.UNITS
     new_input.USE_BPER = input.USE_BPER
     new_input.USE_BPAR = input.USE_BPAR
@@ -140,8 +133,7 @@ function revert_input(input::TJLFEP.TJLF.InputTJLF{T}, ns::Int64, nky::Int64) wh
     new_input.VPAR_SHEAR = input.VPAR_SHEAR
     new_input.WIDTH_SPECTRUM = input.WIDTH_SPECTRUM
     new_input.KY_SPECTRUM = input.KY_SPECTRUM
-    # EIGEN_SPECTRUM: Vector{Complex{T}} in TJLF, hardcoded ComplexF64 in TJLFEP — skip copy (callers extract eigen_out before revert_input)
-    # new_input.EIGEN_SPECTRUM = input.EIGEN_SPECTRUM
+    # EIGEN_SPECTRUM: Vector{Complex{T}} in TJLF; ComplexF64 in TJLFEP — callers cache eigen_out before revert
     new_input.FIND_EIGEN = input.FIND_EIGEN
     new_input.SIGN_BT = input.SIGN_BT
     new_input.SIGN_IT = input.SIGN_IT

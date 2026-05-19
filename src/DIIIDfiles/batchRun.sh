@@ -7,16 +7,14 @@
 #SBATCH -C cpu
 #SBATCH -J TJLFEP
 
-module load julia
+module load julia/1.11.7
 
 threads_main=2
 
-# # Store Julia compiled cache on scratch (large quota) instead of home (small quota).
-# # The depot path has two entries: scratch for compiled cache, home for packages/source.
-export JULIA_DEPOT_PATH="/pscratch/sd/w/whoffman/.julia:~/.julia"
-mkdir -p /pscratch/sd/w/whoffman/.julia/compiled
+export JULIA_DEPOT_PATH="${PSCRATCH}/.julia"
+mkdir -p "${JULIA_DEPOT_PATH}/compiled"
 
-cd ~/.julia/dev/EP_TJLF/src/DIIIDfiles
+cd ~/.julia/dev/TJLFEP/src/DIIIDfiles
 
 # Start node monitor in the background; poll every 5s until the Julia job ends.
 MONITOR_LOG="monitor_${SLURM_JOB_ID}.log"

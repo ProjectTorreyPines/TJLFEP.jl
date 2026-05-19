@@ -45,3 +45,6 @@ Printf = "1.11.0"
 SimulationParameters = "2.1.1"
 SlurmClusterManager = "1.1.0"
 TurbulentTransport = "1.1.4"
+
+[sources]
+TJLF = {path = "../TJLF"}

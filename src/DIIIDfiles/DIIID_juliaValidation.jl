@@ -5,7 +5,8 @@ using SlurmClusterManager
 
 SCAN_N = 20
 # SCAN_N = 1
-IS_EP = 1 # fast D is EP driver
+# IMAS is_ep=1 → fast D on 1st ion (context.jl); matches Fortran input.TGLFEP IS_EP=2 (2nd EXPRO ion, ns=N_ION+1).
+IS_EP = 1
 rho = [0.01, 0.06, 0.11, 0.16, 0.21, 0.27, 0.32, 0.37, 0.42, 0.47,
         0.53, 0.58, 0.63, 0.68, 0.73, 0.79, 0.84, 0.89, 0.94, 1.0]
 # rho = [0.01, 0.06, 0.11, 0.16, 0.21, 0.27, 0.32, 0.37]
@@ -20,7 +21,7 @@ else
     nthreads = min(256, max(1, div(tot-2, SCAN_N))) # 256 = number inner iters per scan
 end
 
-sysimage_path = expanduser("~/.julia/dev/EP_TJLF/build/noTJLF_TJLFEP_sysimage.so")
+sysimage_path = expanduser("~/.julia/dev/TJLFEP/build/noTJLF_TJLFEP_sysimage.so")
 project_path = expanduser("../../")
 addprocs(SlurmManager(); exeflags=`--project=$project_path --sysimage=$sysimage_path --threads=$nthreads`)
 @everywhere println("worker $(myid()) on $(gethostname())")

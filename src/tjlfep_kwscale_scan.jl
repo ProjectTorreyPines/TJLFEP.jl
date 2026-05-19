@@ -104,6 +104,7 @@ function kwscale_scan(inputsEP::Options{T}, inputsPR::profile{T}, printout::Bool
             local_inputsEP.FACTOR_IN = factor[ifactor] # Just used in mapping
             local_inputsEP.KYHAT_IN = kyhat[ikyhat] # Set equal to ky_in
             local_inputsEP.WIDTH_IN = efwid[iefwid]
+            debug_dump_kw_combo(local_inputsEP, i)
 
             str_sf = string(Char(mod(floor(Int, local_inputsEP.FACTOR_IN/100.0), 10) + UInt32('0'))) *
                      string(Char(mod(floor(Int, local_inputsEP.FACTOR_IN/10.0), 10) + UInt32('0')))  *
@@ -324,7 +325,8 @@ function kwscale_scan(inputsEP::Options{T}, inputsPR::profile{T}, printout::Bool
         # deepcopy'd local structs and never wrote these back to the shared struct.
         inputsEP.FREQ_AE_UPPER = -abs(inputsPR.omegaGAM[inputsEP.IR])
         if inputsEP.ROTATIONAL_SUPPRESSION_FLAG == 1
-            inputsEP.GAMMA_THRESH_MAX = abs(inputsPR.gammap[inputsEP.IR]) * 2.0 * (min(1.0 - inputsPR.RMIN[inputsEP.IR], inputsPR.RMIN[inputsEP.IR]) / inputsPR.RMAJ[inputsEP.IR])
+            r_over_a = inputsPR.RMIN[inputsEP.IR] / inputsPR.RMIN[end]
+            inputsEP.GAMMA_THRESH_MAX = abs(inputsPR.gammap[inputsEP.IR]) * 2.0 * (min(1.0 - r_over_a, r_over_a) / inputsPR.RMAJ[inputsEP.IR])
             inputsEP.GAMMA_THRESH = 0.15 * abs(inputsPR.gammaE[inputsEP.IR] / inputsPR.SHEAR[inputsEP.IR])
             inputsEP.GAMMA_THRESH = min(inputsEP.GAMMA_THRESH, inputsEP.GAMMA_THRESH_MAX)
         else

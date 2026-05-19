@@ -62,7 +62,8 @@ ir_exp = prof[2]
 inputTGLFEP = TJLFEP.readTGLFEP(inputEPfile, ir_exp)
 
 # Set up EXPRO constants:
-ni, Ti, dlnnidr, dlntidr, cs, rmin_ex, gammaE, gammap, omegaGAM = TJLFEP.readEXPRO(inputEXPfile, inputTGLFEP.IS_EP)
+ni, Ti, dlnnidr, dlntidr, cs, rmin_ex, gammaE, gammap, omegaGAM = TJLFEP.read_expro_for_alpha(
+    inputEXPfile, inputMTGLF, inputTGLFEP.IS_EP; gacode_file=get(ENV, "GACODE_DUMP", nothing))
 # inputMTGLF.gammaE = gammaE
 # inputMTGLF.gammap = gammap
 # inputMTGLF.omegaGAM = omegaGAM

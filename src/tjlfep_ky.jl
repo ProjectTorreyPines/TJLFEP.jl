@@ -101,6 +101,9 @@ function TJLFEP_ky(inputsEP::Options{T}, inputsPR::profile{T}, str_wf_file::Stri
         g[n] = gamma_out[n]
         f[n] = freq_out[n]
     end
+    for n = 1:min(4, inputTJLF.NMODES)
+        debug_dump_ky_postrun(inputsEP, inputTJLF, g, f, n)
+    end
 
     # println("before ", gamma_out)
     #GAMMA STILL NON-ZERO UP TO HERE
@@ -212,23 +215,15 @@ function TJLFEP_ky(inputsEP::Options{T}, inputsPR::profile{T}, str_wf_file::Stri
         th_QL_flux = 0.0
         th_eff_grad = 0.0
 
-        if (n <= nmodes_out)
-            for jfields = 1:3
-                # println("size(particle_QL_out ", size(particle_QL_out))
-                EP_QL_flux = EP_QL_flux + particle_QL_out[jfields, inputsEP.IS_EP + 1, n]
-                # io97 = open("radius.test.out", "a")
-                # println(io97, "n = ", n)
-                # println(io97, "jfields = ", jfields)
-                # println(io97, "particle_QL_out[jfields, inputsEP.IS_EP + 1, n]= ", particle_QL_out[jfields, inputsEP.IS_EP + 1, n])
-                # println(io97, "energy_QL_out[jfields, inputsEP.IS_EP + 1, n]= ", energy_QL_out[jfields, inputsEP.IS_EP + 1, n])
-                # close(io97)
-                EP_QL_e_flux = EP_QL_e_flux + energy_QL_out[jfields, inputsEP.IS_EP + 1, n]
-                e_QL_flux = e_QL_flux + energy_QL_out[jfields, 1, n]
-                e_QL_cond_flux[n] = e_QL_cond_flux[n] + energy_QL_out[jfields, 1, n] - 1.5*inputTJLF.TAUS[1]*particle_QL_out[jfields, 1, n]
-                for j_ion = 2:inputsEP.IS_EP
-                    i_QL_flux = i_QL_flux + energy_QL_out[jfields, j_ion, n]
-                    i_QL_cond_flux[n] = i_QL_cond_flux[n] + energy_QL_out[jfields, j_ion, n] - 1.5*inputTJLF.TAUS[j_ion]*particle_QL_out[jfields, j_ion, n]
-                end         
+        # Fortran TGLFEP_ky accumulates QL for all nmodes (no nmodes_out guard).
+        for jfields = 1:3
+            EP_QL_flux = EP_QL_flux + particle_QL_out[jfields, inputsEP.IS_EP + 1, n]
+            EP_QL_e_flux = EP_QL_e_flux + energy_QL_out[jfields, inputsEP.IS_EP + 1, n]
+            e_QL_flux = e_QL_flux + energy_QL_out[jfields, 1, n]
+            e_QL_cond_flux[n] = e_QL_cond_flux[n] + energy_QL_out[jfields, 1, n] - 1.5*inputTJLF.TAUS[1]*particle_QL_out[jfields, 1, n]
+            for j_ion = 2:inputsEP.IS_EP
+                i_QL_flux = i_QL_flux + energy_QL_out[jfields, j_ion, n]
+                i_QL_cond_flux[n] = i_QL_cond_flux[n] + energy_QL_out[jfields, j_ion, n] - 1.5*inputTJLF.TAUS[j_ion]*particle_QL_out[jfields, j_ion, n]
             end
         end
 
@@ -245,12 +240,12 @@ function TJLFEP_ky(inputsEP::Options{T}, inputsPR::profile{T}, str_wf_file::Stri
         chi_i_cond[n] = i_QL_cond_flux[n] / i_eff_grad
         chi_th[n] = th_QL_flux / th_eff_grad
 
-        if (n <= nmodes_out) 
-                # QL_flux_ratio[n] = (EP_QL_flux/inputTJLF.AS[inputsEP.IS_EP+1])/(abs(i_QL_cond_flux[n])/(inputTJLF.AS[1]-inputTJLF.AS[inputsEP.IS_EP+1]))
-            QL_flux_ratio[n] = EP_QL_e_flux / abs(i_QL_cond_flux[n])
-            EP_conv_frac[n] = EP_QL_flux * 1.5 * inputTJLF.TAUS[inputsEP.IS_EP+1] / EP_QL_e_flux
-        else
-            QL_flux_ratio[n] = 1e20
+        # QL_flux_ratio[n] = (EP_QL_flux/inputTJLF.AS[inputsEP.IS_EP+1])/(abs(i_QL_cond_flux[n])/(inputTJLF.AS[1]-inputTJLF.AS[inputsEP.IS_EP+1]))
+        QL_flux_ratio[n] = EP_QL_e_flux / abs(i_QL_cond_flux[n])
+        EP_conv_frac[n] = EP_QL_flux * 1.5 * inputTJLF.TAUS[inputsEP.IS_EP+1] / EP_QL_e_flux
+        if n == 1
+            dbgmsg("ky_ql n=1 QL_flux_ratio=", QL_flux_ratio[n], " EP_QL_e_flux=", EP_QL_e_flux,
+                " i_QL_cond=", i_QL_cond_flux[n])
         end
 
         if (chi_i[n] < 0.0) inputsEP.L_I_PINCH[n] = true end
