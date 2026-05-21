@@ -6,10 +6,7 @@
 
 using Printf
 
-# Archived reference outputs (read-only; do not run jobs in this directory).
 const FORTRAN_REF_DIR = get(ENV, "FORTRAN_REF_DIR", joinpath(@__DIR__, "202017C42_500ms_v3.1"))
-const RHO_SCAN = [0.01, 0.06, 0.11, 0.16, 0.21, 0.27, 0.32, 0.37, 0.42, 0.47,
-    0.53, 0.58, 0.63, 0.68, 0.73, 0.79, 0.84, 0.89, 0.94, 1.0]
 
 function latest_julia_outdir()
     candidates = filter(d -> startswith(d, "GPU_") || startswith(d, "CPU_"), readdir(@__DIR__))
@@ -18,23 +15,29 @@ function latest_julia_outdir()
     return joinpath(@__DIR__, candidates[1])
 end
 
-"""Parse final converged scale factor from out.scalefactor_r### (last non-empty data line)."""
-function parse_sfmin(path::String)
-    isfile(path) || return missing
-    lines = readlines(path)
-    for line in reverse(lines)
-        s = strip(line)
-        isempty(s) && continue
-        startswith(s, "factor") && continue
-        startswith(s, "---") && continue
-        startswith(s, "omega") && continue
-        startswith(s, "Frequencies") && continue
-        parts = split(s)
-        length(parts) < 1 && continue
-        x = tryparse(Float64, parts[1])
-        x !== nothing && return x
+function read_sfmin(dir::String)
+    p = joinpath(dir, "out.TGLFEP")
+    if isfile(p)
+        lines = readlines(p)
+        i = findfirst(l -> strip(l) == "SFmin", lines)
+        out = Float64[]
+        for line in lines[i+1:end]
+            s = strip(line)
+            isempty(s) && break
+            startswith(s, "The ") && break
+            if startswith(s, "[")
+                m = match(r"\[(.*)\]", s)
+                return parse.(Float64, strip.(split(m.captures[1], ",")))
+            end
+            x = tryparse(Float64, split(s, " ")[1])
+            x === nothing && break
+            push!(out, x)
+        end
+        return out
     end
-    return missing
+    p = joinpath(dir, "sfmin_scan.txt")
+    isfile(p) || error("need out.TGLFEP or sfmin_scan.txt in $dir")
+    return [parse(Float64, split(strip(line))[3]) for line in readlines(p) if !isempty(strip(line))]
 end
 
 function parse_crit_file(path::String)
@@ -51,26 +54,18 @@ function parse_crit_file(path::String)
 end
 
 function compare_sfmin(f_dir::String, j_dir::String)
-    println("\n=== out.scalefactor_r### (final factor per radius) ===")
-    println(@sprintf("%-4s %-22s %-12s %-12s %-10s", "k", "file", "F", "J", "rel_err"))
+    println("\n=== SFmin (out.TGLFEP or sfmin_scan.txt) ===")
+    sf_f = read_sfmin(f_dir)
+    sf_j = read_sfmin(j_dir)
+    n = min(length(sf_f), length(sf_j))
+    println(@sprintf("%-4s %-12s %-12s %-10s", "i", "F", "J", "rel_err"))
     max_rel = 0.0
-    n = 0
-    f_files = sort(filter(f -> startswith(f, "out.scalefactor_r"), readdir(f_dir)))
-    j_files = sort(filter(f -> startswith(f, "out.scalefactor_r"), readdir(j_dir)))
-    ncomp = min(length(f_files), length(j_files))
-    for k in 1:ncomp
-        ff = joinpath(f_dir, f_files[k])
-        jf = joinpath(j_dir, j_files[k])
-        sf_f = parse_sfmin(ff)
-        sf_j = parse_sfmin(jf)
-        rel = (sf_f, sf_j) isa Tuple{Float64, Float64} ? abs(sf_j - sf_f) / max(abs(sf_f), 1e-30) : NaN
-        if sf_f !== missing && sf_j !== missing
-            max_rel = max(max_rel, rel)
-            n += 1
-        end
-        @printf("%3d  %-20s  F=%.6g  J=%.6g  rel=%.4g\n", k, f_files[k], something(sf_f, NaN), something(sf_j, NaN), rel)
+    for i in 1:n
+        rel = abs(sf_j[i] - sf_f[i]) / max(abs(sf_f[i]), 1e-30)
+        max_rel = max(max_rel, rel)
+        @printf("%3d  F=%.6g  J=%.6g  rel=%.4g\n", i, sf_f[i], sf_j[i], rel)
     end
-    println(@sprintf("Compared %d radius files; max relative |SF_J-SF_F|/|SF_F| = %.4g", n, max_rel))
+    println(@sprintf("Compared %d radii; max relative |SF_J-SF_F|/|SF_F| = %.4g", n, max_rel))
     return max_rel
 end
 

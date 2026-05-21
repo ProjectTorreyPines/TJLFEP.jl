@@ -1,3 +1,19 @@
+# Match Fortran out.scalefactor layout (format 20 / 60 in TGLFEP_kwscale_scan.f90).
+function _scalefactor_section_header(kyhat::T, ky_write::T, efwid::T, fmark::T) where {T<:Real}
+    return @sprintf(
+        "--------------- ky*rho_EP= %7.4f  (ky*rho_s=%7.4f)   width=%7.4f   scalefactor=%10.4f -------------------",
+        kyhat, ky_write, efwid, fmark,
+    )
+end
+
+function _scalefactor_factor_line(fac::T, g::AbstractVector{T}, f::AbstractVector{T}, keep_label::AbstractVector{String}) where {T<:Real}
+    parts = [@sprintf("%11.4f", fac)]
+    for n in eachindex(keep_label)
+        push!(parts, @sprintf(" %14.5E", g[n]), @sprintf(" %14.5E", f[n]), " ", keep_label[n])
+    end
+    return join(parts)
+end
+
 function kwscale_scan(inputsEP::Options{T}, inputsPR::profile{T}, printout::Bool = true; use_gpu::Bool = false) where {T<:Real}
     # These are for testing purposes:
     #baseDirectory = "/Users/benagnew/TJLF.jl/outputs/tglfep_tests/input.MTGLF"
@@ -337,82 +353,58 @@ function kwscale_scan(inputsEP::Options{T}, inputsPR::profile{T}, printout::Bool
             filename = "out.scalefactor"*coalesce(inputsEP.SUFFIX, "")
             # Header written only once (first k), matching Fortran's file-create-once behavior
             if isempty(scalefactor_buffer)
-                push!(scalefactor_buffer, "factor, (gamma(n), freq(n), flag, n=1, nmodes_in)")
-                push!(scalefactor_buffer, "flag key:  'K' mode is kept")
+                push!(scalefactor_buffer, "factor,(gamma(n),freq(n),flag,n=1,nmodes_in)")
+                push!(scalefactor_buffer, "flag key:  'K'  mode is kept")
                 if (inputsEP.REJECT_TEARING_FLAG == 1) push!(scalefactor_buffer, "           'T' rejected for tearing parity") end
                 if (inputsEP.REJECT_I_PINCH_FLAG == 1) push!(scalefactor_buffer, "           'Pi' rejected for ion pinch") end
                 if (inputsEP.REJECT_E_PINCH_FLAG == 1) push!(scalefactor_buffer, "           'Pe' rejected for electron pinch") end
                 if (inputsEP.REJECT_TH_PINCH_FLAG == 1) push!(scalefactor_buffer, "           'Pth' rejected for thermal pinch") end
                 if (inputsEP.REJECT_EP_PINCH_FLAG == 1) push!(scalefactor_buffer, "           'PEP' rejected for EP pinch") end
                 push!(scalefactor_buffer, "           'QLR' rejected for QL ratio EP/|chi_i| < $(inputsEP.QL_RATIO_THRESH)")
-                push!(scalefactor_buffer, "           'F' rejected for non-AE frequency > $(inputsEP.F_REAL[inputsEP.IR]*inputsEP.FREQ_AE_UPPER) kHz")
                 push!(scalefactor_buffer, "           'TH2' rejected for <theta^2>  > $(inputsEP.THETA_SQ_THRESH)")
-                push!(scalefactor_buffer, "           'BT'  mode growth rate is below threshold GAMMA_THRESH = $(inputsEP.F_REAL[inputsEP.IR] * inputsEP.GAMMA_THRESH) kHz")
-                push!(scalefactor_buffer, "omega_TAE = $(inputsEP.F_REAL[inputsEP.IR] * inputsPR.OMEGA_TAE[inputsEP.IR]) ;  omegaGAM = $(-inputsEP.F_REAL[inputsEP.IR] * inputsPR.omegaGAM[inputsEP.IR])")
+                push!(scalefactor_buffer, "           'F'   rejected for non-AE frequency > $(inputsEP.F_REAL[inputsEP.IR]*inputsEP.FREQ_AE_UPPER) kHz")
+                push!(scalefactor_buffer, "           'BT'  mode growth rate is below threshold gamma_thresh = $(inputsEP.F_REAL[inputsEP.IR] * inputsEP.GAMMA_THRESH) kHz")
+                push!(scalefactor_buffer, "omega_TAE = $(inputsEP.F_REAL[inputsEP.IR] * inputsPR.OMEGA_TAE[inputsEP.IR]) ;  omega_GAM = $(-inputsEP.F_REAL[inputsEP.IR] * inputsPR.omegaGAM[inputsEP.IR])")
+                if inputsEP.REAL_FREQ != 0
+                    push!(scalefactor_buffer, "Frequencies in real units, plasma frame [kHz] ; (c_s/a)/(2*pi) = $(inputsEP.F_REAL[inputsEP.IR]) kHz")
+                end
             end
 
             ky_write = kyhat[ikyhat_write]*inputTJLF.ZS[inputsEP.IS_EP+1]/sqrt(inputTJLF.MASS[inputsEP.IS_EP+1]*inputTJLF.TAUS[inputsEP.IS_EP+1])
 
-            push!(scalefactor_buffer, "--------------- ky*rho_EP= $(kyhat[ikyhat_write])  (ky*rho_s=$(ky_write))   width= $(efwid[iefwid_write])   scalefactor= $(fmark) -------------------")
+            push!(scalefactor_buffer, _scalefactor_section_header(kyhat[ikyhat_write], ky_write, efwid[iefwid_write], fmark))
 
             for ifactor = 1:nfactor
                 ikyhat = ikyhat_write
                 iefwid = iefwid_write
-                tlabelvec = fill("", inputsEP.NMODES)
                 for n = 1:inputsEP.NMODES
                     g[n] = inputsEP.F_REAL[inputsEP.IR]*growthrate[ikyhat, iefwid, ifactor, n]
                     f[n] = inputsEP.F_REAL[inputsEP.IR]*frequency[ikyhat, iefwid, ifactor, n]
-                    testlabel = ""
                     if (lkeep_i[ikyhat,iefwid,ifactor,n])
                         keep_label[n] = " K  "
-                        testlabel = testlabel*" K "
                     elseif growthrate[ikyhat, iefwid, ifactor, n] < inputsEP.GAMMA_THRESH 
                         keep_label[n] = " BT  "
-                        testlabel = testlabel*" BT "
                     elseif ((ltearing_i[ikyhat,iefwid,ifactor,n]) && (inputsEP.REJECT_TEARING_FLAG == 1))
                         keep_label[n] = " T  "
-                        testlabel = testlabel*" T "
                     elseif ((l_i_pinch_i[ikyhat,iefwid,ifactor,n]) && (inputsEP.REJECT_I_PINCH_FLAG == 1))
                         keep_label[n] = " Pi "
-                        testlabel = testlabel*" Pi "
                     elseif ((l_e_pinch_i[ikyhat,iefwid,ifactor,n]) && (inputsEP.REJECT_E_PINCH_FLAG == 1))
                         keep_label[n] = " Pe "
-                        testlabel = testlabel*" Pe "
                     elseif ((l_th_pinch_i[ikyhat,iefwid,ifactor,n]) && (inputsEP.REJECT_TH_PINCH_FLAG == 1))
                         keep_label[n] = " Pth"
-                        testlabel = testlabel*" Pth "
                     elseif ((l_EP_pinch_i[ikyhat,iefwid,ifactor,n]) && (inputsEP.REJECT_EP_PINCH_FLAG == 1))
                         keep_label[n] = " PEP"
-                        testlabel = testlabel*" PEP "
-                    # elseif (l_max_outer_panel_i[ikyhat,iefwid,ifactor,n])
-                    #     keep_label[n] = " OP"
-                    #     testlabel = testlabel*" OP "
                     elseif (l_QL_ratio_i[ikyhat,iefwid,ifactor,n])
                         keep_label[n] = " QLR"
-                        testlabel = testlabel*" QLR "
                     elseif l_theta_sq_i[ikyhat, iefwid, ifactor, n]
                         keep_label[n] = " TH2"
-                        testlabel = testlabel*" TH2 "
                     elseif (frequency[ikyhat,iefwid,ifactor,n] > inputsEP.FREQ_AE_UPPER)
                         keep_label[n] = " F  "
-                        testlabel = testlabel*" F "
                     else
                         keep_label[n] = " ?  "
-                        testlabel = testlabel*" ? "
-                    end
-                    tlabelvec[n] = testlabel
-                end
-                if (inputsEP.REAL_FREQ == 0)
-                    for n = 1:inputsEP.NMODES
-                        push!(scalefactor_buffer, string(factor[ifactor], " ", g[n], " ", f[n], " ", keep_label[n]))
-                        push!(scalefactor_buffer, tlabelvec[n])
-                    end
-                else
-                    for n = 1:inputsEP.NMODES
-                        push!(scalefactor_buffer, string(factor[ifactor], " ", g[n], " ", f[n], " ", keep_label[n]))
-                        push!(scalefactor_buffer, tlabelvec[n])
                     end
                 end
+                push!(scalefactor_buffer, _scalefactor_factor_line(factor[ifactor], g, f, keep_label))
             end # ifactor
         end 
 
