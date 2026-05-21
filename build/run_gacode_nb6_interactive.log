@@ -1,0 +1,66 @@
+  Activating project at `/pscratch/sd/t/tneiser/.julia/dev/TJLFEP`
+=== preprocess_gacode_inputs ===
+field: PROCESS_IN false
+field: THRESHOLD_FLAG false
+field: N_BASIS false
+field: SCAN_METHOD false
+field: REJECT_I_PINCH_FLAG false
+field: REJECT_E_PINCH_FLAG false
+field: REJECT_TH_PINCH_FLAG false
+field: REJECT_EP_PINCH_FLAG false
+field: REJECT_TEARING_FLAG false
+field: ROTATIONAL_SUPPRESSION_FLAG false
+field: PPRIME_METHOD false
+field: QL_RATIO_THRESH false
+field: THETA_2_THRESH true
+field: Q_SCALE false
+field: WRITE_WAVEFUNCTION false
+field: KY_MODEL false
+field: SCAN_N false
+field: IRS false
+field: FACTOR_IN_PROFILE false
+field: FACTOR_IN false
+field: WIDTH_IN_FLAG false
+field: WIDTH_MIN false
+field: WIDTH_MAX false
+field: INPUT_PROFILE_METHOD false
+field: N_ION false
+field: IS_EP false
+field: REAL_FREQ false
+NR=101 NS=3 SCAN_N=1 IR_EXP=[2] IS_EP=2
+
+=== runTHD_from_gacode (SCAN_N from input.TGLFEP) ===
+field: PROCESS_IN false
+field: THRESHOLD_FLAG false
+field: N_BASIS false
+field: SCAN_METHOD false
+field: REJECT_I_PINCH_FLAG false
+field: REJECT_E_PINCH_FLAG false
+field: REJECT_TH_PINCH_FLAG false
+field: REJECT_EP_PINCH_FLAG false
+field: REJECT_TEARING_FLAG false
+field: ROTATIONAL_SUPPRESSION_FLAG false
+field: PPRIME_METHOD false
+field: QL_RATIO_THRESH false
+field: THETA_2_THRESH true
+field: Q_SCALE false
+field: WRITE_WAVEFUNCTION false
+field: KY_MODEL false
+field: SCAN_N false
+field: IRS false
+field: FACTOR_IN_PROFILE false
+field: FACTOR_IN false
+field: WIDTH_IN_FLAG false
+field: WIDTH_MIN false
+field: WIDTH_MAX false
+field: INPUT_PROFILE_METHOD false
+field: N_ION false
+field: IS_EP false
+field: REAL_FREQ false
+options ir_exp is [2]
+=============================================================
+pre mainsub
+i is 1 ir is 2
+=============================================================
+SFmin = [2.8124550711658354]
+done

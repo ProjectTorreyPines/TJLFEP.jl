@@ -8,6 +8,7 @@ using Pkg
 Pkg.activate(normpath(@__DIR__, ".."))
 
 using TJLFEP
+using TJLF
 
 const ROOT = normpath(@__DIR__, "..")
 const CASE = joinpath(ROOT, "src", "DIIIDfiles", "202017C42_500ms_v3.1")
@@ -21,7 +22,10 @@ println("=== preprocess_gacode_inputs ===")
 opts, prof, expro = preprocess_gacode_inputs(GACODE, TGLFEP)
 println("NR=$(prof.NR) NS=$(prof.NS) SCAN_N=$(opts.SCAN_N) IR_EXP=$(opts.IR_EXP) IS_EP=$(opts.IS_EP)")
 
+use_gpu = get(ENV, "USE_GPU", "") == "1" || TJLF.pick_device(:auto) === :gpu
 println("\n=== runTHD_from_gacode (SCAN_N from input.TGLFEP) ===")
-width, kymark, SFmin, dpdr, dndr = runTHD_from_gacode(GACODE, TGLFEP; printout=false, parallel=:threads)
+println("device: ", use_gpu ? "GPU" : "CPU", "  pick_device(:auto)=", TJLF.pick_device(:auto))
+println("CUDA functional: ", TJLF._cuda_functional(), "  _CUDA_SOLVE set: ", TJLF._CUDA_SOLVE[] !== nothing)
+width, kymark, SFmin, dpdr, dndr = runTHD_from_gacode(GACODE, TGLFEP; printout=false, use_gpu=use_gpu, parallel=:threads)
 println("SFmin = ", SFmin)
 println("done")
