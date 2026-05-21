@@ -5,7 +5,7 @@
 #SBATCH -N 1
 #SBATCH -t 02:00:00
 #SBATCH -C cpu
-#SBATCH -J TGLFEP_nb32
+#SBATCH -J TGLFEP_nb32_cpu
 #SBATCH -o debug_nb32_fortran_%j.out
 #SBATCH -e debug_nb32_fortran_%j.err
 #SBATCH --ntasks=1

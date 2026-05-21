@@ -27,12 +27,16 @@ export TGLFEP_FILE="${TJLFEP_ROOT}/build/debug_nb6/input_scan20.TGLFEP"
 export FILE_DIR="${TJLFEP_ROOT}/build/debug_nb6/fileInput_scan20_10n_${SLURM_JOB_ID:-local}"
 
 cd "${TJLFEP_ROOT}/build"
+# shellcheck source=julia_sysimage.inc.sh
+source "${TJLFEP_ROOT}/build/julia_sysimage.inc.sh"
 run_julia() { stdbuf -oL -eL julia "$@"; }
 
 echo "=== Julia nb6 SCAN_N=${SCAN_N} on ${SLURM_NNODES:-?} nodes ==="
 echo "SLURM_NTASKS=${SLURM_NTASKS:-?} JULIA_WORKER_THREADS=${JULIA_WORKER_THREADS}"
 echo "TGLFEP_FILE=${TGLFEP_FILE} FILE_DIR=${FILE_DIR} GACODE_DUMP=${GACODE_DUMP}"
 
-run_julia --project="${TJLFEP_ROOT}" debug_compare_nb6_scan20_distributed.jl
+run_julia --startup-file=no --project="${TJLFEP_ROOT}" \
+    "${JULIA_SYSIMAGE_ARGS[@]}" \
+    debug_compare_nb6_scan20_distributed.jl
 
 echo "=== Julia nb6 scan20 distributed finished ==="

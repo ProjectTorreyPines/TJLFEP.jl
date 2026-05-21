@@ -48,7 +48,10 @@ srun --export=ALL --label -n "${SLURM_NTASKS:-20}" --cpu-bind=cores \
 
 echo "=== all ${SLURM_NTASKS:-20} tasks done; merging on CPU ==="
 export USE_GPU=0
+# shellcheck source=julia_sysimage.inc.sh
+source "${TJLFEP_ROOT}/build/julia_sysimage.inc.sh"
 stdbuf -oL -eL julia --startup-file=no --project="${TJLFEP_ROOT}" \
+    "${JULIA_SYSIMAGE_ARGS[@]}" \
     -t 8 merge_gacode_scan20_array.jl
 
 echo "=== scan + merge done; outputs in ${OUT_DIR} ==="

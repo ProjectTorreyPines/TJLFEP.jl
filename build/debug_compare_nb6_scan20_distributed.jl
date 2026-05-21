@@ -49,7 +49,13 @@ logmsg("TJLF: ", pathof(TJLF))
 logmsg("TJLFEP: ", pathof(TJLFEP))
 
 project_path = TJLFEP_ROOT
-exeflags = `--project=$(project_path) -t $(THREADS_PER_WORKER)`
+_sysimage = get(ENV, "TJLFEP_SYSIMAGE", joinpath(TJLFEP_ROOT, "build", "noTJLF_TJLFEP_sysimage.so"))
+exeflags = if isfile(_sysimage)
+    `--project=$(project_path) --sysimage=$(_sysimage) -t $(THREADS_PER_WORKER)`
+else
+    `--project=$(project_path) -t $(THREADS_PER_WORKER)`
+end
+logmsg("worker exeflags sysimage=", isfile(_sysimage) ? _sysimage : "none")
 
 worker_env = Dict{String,String}()
 if haskey(ENV, "JULIA_DEPOT_PATH")
