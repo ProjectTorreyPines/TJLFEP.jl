@@ -1,0 +1,64 @@
+  Activating project at `~/.julia/dev/TJLFEP`
+=== IMAS extraEP vs Fortran EXPRO (dump.gacode + expro_util logic) ===
+CASE_DIR: /Users/neiser/.julia/dev/TJLFEP/src/DIIIDfiles/202017C42_500ms_v3.1
+IS_EP (IMAS): 1  → GACODE ion index: 2
+rho scan (n=20): [0.01, 0.06, 0.11, 0.16, 0.21, 0.27, 0.32, 0.37, 0.42, 0.47, 0.53, 0.58, 0.63, 0.68, 0.73, 0.79, 0.84, 0.89, 0.94, 1.0]
+
+Grid sizes: EXPRO nr=101, IMAS nr=101
+At ρ=0.01: ir_expro=2 ir_imas=2  rmin_ft=0.006229 rmin_imas=0.006228
+
+--- Raw profiles (no derivative) ---
+  rmin [m]               max=1.605e-04 mean=1.318e-05  (worst ρ=0.010 ref=0.00622909 test=0.00622809)
+  ne [1e19]              max=0.000e+00 mean=0.000e+00  (worst ρ=0.010 ref=1.87093 test=1.87093)
+  te [keV]               max=0.000e+00 mean=0.000e+00  (worst ρ=0.010 ref=1.64068 test=1.64068)
+  ni1 [1e19]             max=0.000e+00 mean=0.000e+00  (worst ρ=0.010 ref=1.23099 test=1.23099)
+  ti1 [keV]              max=0.000e+00 mean=0.000e+00  (worst ρ=0.010 ref=1.42847 test=1.42847)
+  ni_EP [1e19]           max=0.000e+00 mean=0.000e+00  (worst ρ=0.010 ref=0.639288 test=0.639288)
+  ti_EP [keV]            max=1.102e-04 mean=1.102e-04  (worst ρ=0.210 ref=19.939 test=19.9412)
+  q (signed)             max=2.000e+00 mean=2.000e+00  (worst ρ=0.010 ref=-5.12204 test=5.12204)
+  |q|                    max=0.000e+00 mean=0.000e+00  (worst ρ=0.010 ref=5.12204 test=5.12204)
+
+--- Log gradients / RLNS (Julia uses IMAS.calc_z; Fortran uses bound_deriv) ---
+  RLNS_e                 max=1.544e-01 mean=3.129e-02  (worst ρ=0.010 ref=0.0237631 test=0.0200932)
+  RLTS_e                 max=2.018e-01 mean=3.269e-02  (worst ρ=1.000 ref=4.88358 test=6.11856)
+  RLNS_ion1              max=5.139e-01 mean=9.661e-02  (worst ρ=0.470 ref=0.0162043 test=0.00787675)
+  RLTS_ion1              max=2.086e-01 mean=3.367e-02  (worst ρ=1.000 ref=2.25343 test=2.84737)
+  RLNS_EP                max=9.517e-01 mean=8.364e-02  (worst ρ=1.000 ref=11.9865 test=0.578677)
+  RLTS_EP                max=1.750e+00 mean=1.884e-01  (worst ρ=0.010 ref=-0.0224296 test=0.0168261)
+
+--- Derivative method on same IMAS grid (ρ scan) ---
+  dlnn_e bound_deriv     max=9.538e-01 mean=7.878e-01  (worst ρ=0.940 ref=5.9495 test=0.274836)
+  dlnt_e bound_deriv     max=8.611e-01 mean=7.682e-01  (worst ρ=0.110 ref=1.31484 test=0.182634)
+
+--- Rotation / flow (Fortran TGLFEP rotation_flag=0 → vpar=0 in driver; extraEP still fills gamma) ---
+  gammaE (a/cs norm)     max=9.929e-01 mean=9.929e-01  (worst ρ=0.010 ref=-0.0403994 test=-0.000285551)
+  gammap (a/cs norm)     max=1.007e+00 mean=1.007e+00  (worst ρ=0.060 ref=-6.37343 test=0.045056)
+  cs [m/s]               max=2.931e-01 mean=2.931e-01  (worst ρ=0.060 ref=196907 test=278536)
+
+--- Normalized geometry in extraEP ---
+  RMIN/a                 max=1.588e-04 mean=1.145e-05  (worst ρ=0.010 ref=0.0107644 test=0.0107626)
+
+--- Per-ρ table (selected fields) ---
+   rho  ir_ex  ir_im    RLNS_e_ft    RLNS_e_im   RLNS_EP_ft   RLNS_EP_im    gammaE_ft
+ 0.010      2      2      0.02376      0.02009      0.57868      0.57868    -0.040399
+ 0.060      7      7      0.10196      0.09499      0.80471      0.64511     0.026899
+ 0.110     12     12      0.11652      0.11705      1.83314      1.73487    0.0011531
+ 0.160     17     17      0.13697      0.13137      2.44087      2.45113  -0.00095894
+ 0.210     22     22      0.25770      0.23963      2.69890      2.71624     0.010752
+ 0.270     28     28      0.39959      0.39876      3.21491      3.20555     0.019775
+ 0.320     33     33      0.42241      0.41922      3.75838      3.78928     0.021016
+ 0.370     38     38      0.47093      0.46685      4.20059      4.25370     0.058631
+ 0.420     43     43      0.49564      0.49771      4.61658      4.69546      0.05711
+ 0.470     48     48      0.48718      0.48849      5.03254      5.12821     0.048814
+ 0.530     54     54      0.50610      0.50314      5.61083      5.71891     0.047488
+ 0.580     59     59      0.57335      0.56660      6.26439      6.38940     0.045848
+ 0.630     64     64      0.67256      0.66422      7.31364      7.44415     0.049565
+ 0.680     69     69      0.76860      0.76204      9.04248      9.21588     0.058162
+ 0.730     74     74      0.87094      0.86197     11.42364     11.75495     0.068829
+ 0.790     80     80      1.10053      1.07724     15.26636     15.94439     0.073258
+ 0.840     85     85      1.51148      1.46474     20.06663     21.27384     0.070011
+ 0.890     90     90      2.32378      2.24600     28.55775     30.98060     0.032288
+ 0.940     95     95      3.44284      3.39812     50.00060     56.76515     0.072448
+ 1.000    101    101      2.80054      3.16448     11.98652      0.57868    -0.012321
+
+=== done ===

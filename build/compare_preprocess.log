@@ -1,0 +1,126 @@
+Reference: /Users/neiser/.julia/dev/TJLFEP/build/imas_ref_local
+Test:      /Users/neiser/.julia/dev/TJLFEP/build/imas_test_local
+
+=== input.MTGLF (raw keys, species-mapped) ===
+  ref keys: 3954  test keys: 3348  shared (mapped): 3306
+  only in ref (606): VPAR_  1_1, VPAR_  1_2, VPAR_  1_3, VPAR_  2_1, VPAR_  2_2...
+  max rel err = Inf  mean rel err = Inf
+  worst 10:
+    key                                     ref           test    rel_err
+    B_UNIT_  1                                1           -Inf        Inf
+    OMEGA_TAE_  1                      -1.14475            Inf        Inf
+    Q_PRIME_  1                              -0      -0.346283  3.463e+29
+    SHEAR_  1                                -0   -1.52789e-06  1.528e+24
+    gammap_  1                            1e-07      -0.422099  4.221e+06
+    gammap_  2                            1e-07      -0.412808  4.128e+06
+    gammap_  4                            1e-07       0.347107  3.471e+06
+    gammap_  5                            1e-07       0.179824  1.798e+06
+    gammap_  9                            1e-07      -0.125826  1.258e+06
+    gammap_  6                            1e-07      0.0996407  9.964e+05
+
+=== MTGLF struct (species-mapped) ===
+  ref NR/NS: 101/3  IR_EXP: [2]
+  test NR/NS: 101/3  IR_EXP: [2]
+  species map (ref→test): Dict(2 => 2, 3 => 3, 1 => 1)
+  matrix fields max rel (all radii): 99.77
+  at IR_EXP=2:
+    field        ref(F→J)      test(J)    rel_err
+    AS       F1→J1            1            1          0
+    AS       F2→J2     0.658304     0.657954  0.0005313
+    AS       F3→J3     0.341696     0.341696  4.767e-07
+    TAUS     F1→J1            1            1          0
+    TAUS     F2→J2     0.870653     0.870653  3.151e-07
+    TAUS     F3→J3      12.4025      12.4039  0.0001103
+    RLNS     F1→J1     0.023763    0.0200932     0.1544
+    RLNS     F2→J2    -0.062229    -0.068256    0.09685
+    RLNS     F3→J3     0.578678     0.578677  2.558e-06
+    RLTS     F1→J1     0.088107    0.0706475     0.1982
+    RLTS     F2→J2     0.161541     0.129452     0.1986
+    RLTS     F3→J3     -0.02243    0.0168261       1.75
+    RMIN     ir=2  ref=0.010764 test=0.00622809 rel=0.4214
+    BETAE    ir=2  ref=0.001578 test=0.00158168 rel=0.002333
+    Q        ir=2  ref=-5.12204 test=5.12204 rel=2
+
+=== input.EXPRO (species-mapped) ===
+  ref keys: 1717  test keys: 1313  shared (mapped): 1313
+  only in ref (404): EXPRO_Ti_   3_   1, EXPRO_Ti_   3_   2, EXPRO_Ti_   3_   3, EXPRO_Ti_   3_   4, EXPRO_Ti_   3_   5...
+  max rel err = 4.221e+06  mean rel err = 1.958e+04
+  worst 10:
+    key                                     ref           test    rel_err
+    EXPRO_gammap_1                        1e-07      -0.422099  4.221e+06
+    EXPRO_gammap_2                        1e-07      -0.412808  4.128e+06
+    EXPRO_gammap_4                        1e-07       0.347107  3.471e+06
+    EXPRO_gammap_5                        1e-07       0.179824  1.798e+06
+    EXPRO_gammap_9                        1e-07      -0.125826  1.258e+06
+    EXPRO_gammap_6                        1e-07      0.0996407  9.964e+05
+    EXPRO_gammap_8                        1e-07     -0.0480913  4.809e+05
+    EXPRO_gammap_10                       1e-07     -0.0466927  4.669e+05
+    EXPRO_gammap_7                        1e-07       0.045056  4.506e+05
+    EXPRO_gammap_97                       1e-07      0.0333594  3.336e+05
+field: PROCESS_IN false
+field: THRESHOLD_FLAG false
+field: N_BASIS false
+field: SCAN_METHOD false
+field: REJECT_I_PINCH_FLAG false
+field: REJECT_E_PINCH_FLAG false
+field: REJECT_TH_PINCH_FLAG false
+field: REJECT_EP_PINCH_FLAG false
+field: REJECT_TEARING_FLAG false
+field: ROTATIONAL_SUPPRESSION_FLAG false
+field: PPRIME_METHOD false
+field: QL_RATIO_THRESH false
+field: THETA_2_THRESH true
+field: Q_SCALE false
+field: WRITE_WAVEFUNCTION false
+field: KY_MODEL false
+field: SCAN_N false
+field: IRS false
+field: FACTOR_IN_PROFILE false
+field: FACTOR_IN false
+field: WIDTH_IN_FLAG false
+field: WIDTH_MIN false
+field: WIDTH_MAX false
+field: INPUT_PROFILE_METHOD false
+field: N_ION false
+field: IS_EP false
+field: REAL_FREQ false
+field: PROCESS_IN false
+field: THRESHOLD_FLAG false
+field: N_BASIS false
+field: SCAN_METHOD false
+field: REJECT_I_PINCH_FLAG false
+field: REJECT_E_PINCH_FLAG false
+field: REJECT_TH_PINCH_FLAG false
+field: REJECT_EP_PINCH_FLAG false
+field: REJECT_TEARING_FLAG false
+field: ROTATIONAL_SUPPRESSION_FLAG false
+field: PPRIME_METHOD false
+field: QL_RATIO_THRESH false
+field: THETA_SQ_THRESH false
+field: Q_SCALE false
+field: WRITE_WAVEFUNCTION false
+field: KY_MODEL false
+field: SCAN_N false
+field: IRS false
+field: FACTOR_IN_PROFILE false
+field: FACTOR_IN false
+field: WIDTH_IN_FLAG false
+field: WIDTH_IN false
+field: WIDTH_MIN false
+field: WIDTH_MAX false
+field: INPUT_PROFILE_METHOD false
+field: IS_EP false
+field: NMODES false
+field: NTOROIDAL false
+field: SCAN_FACTOR false
+field: JTSCALE_MAX false
+field: TSCALE_INTERVAL false
+field: N_ION false
+field: FREQ_CUTOFF false
+field: NN false
+field: REAL_FREQ false
+
+=== input.TGLFEP (readTGLFEP) ===
+  IS_EP (semantic): ref=2 test=2  [Fortran 2 ↔ IMAS ep_slot-1]
+  IR_EXP: ref=[2] test=[2]
+  scalar fields match (within tol)
