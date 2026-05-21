@@ -50,6 +50,7 @@ export expro_bound_deriv, expro_log_gradients, read_expro_for_alpha, compute_alp
 export convert_input, revert_input
 export tjlfep_complete_output
 export runTHD, runTHD_from_gacode, runTHDs
+export run_gacode_scan_task, finalize_gacode_scan, slurm_array_task_id
 
 export TJLFEP_generate_input, readline_values
 

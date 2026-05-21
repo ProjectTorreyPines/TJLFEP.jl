@@ -44,7 +44,26 @@ export GACODE_PLATFORM=PERLMUTTER_CPU
 
 `src/DIIIDfiles/202017C42_500ms_v3.1/` (`dump.profile`, `input.gacode`).
 
-## N_BASIS=6, SCAN_N=20, 10 nodes (recommended check)
+## SCAN_N=20 on GPU (5 nodes, gacode-only)
+
+Recommended: **one job on 5 GPU nodes** — `srun -n 20`, **4 tasks/node**, **1 A100 + 32 CPU threads** per radius.
+
+```bash
+cd build
+./submit_gacode_scan20_gpu.sh
+# or manually:
+sbatch batch_run_gacode_scan20_gpu_5nodes.sh
+# after scan completes:
+OUT_DIR=build/gacode_scan20_<JOB_ID>_tasks sbatch batch_merge_gacode_scan20.sh
+```
+
+Alternative (20 separate array tasks, up to 20 nodes): `sbatch batch_run_gacode_scan20_gpu_array.sh`.
+
+Inputs: `input.gacode` + `build/debug_nb6/input_scan20.TGLFEP` (`N_BASIS=6`, `SCAN_N=20`).
+
+Outputs per task: `task_<i>.jls`, optional `out.scalefactor_r*`. After merge: `alpha_*_crit.input`, `sfmin_scan.txt`.
+
+## N_BASIS=6, SCAN_N=20, 10 nodes (CPU, legacy file inputs)
 
 | Step | Command |
 |------|---------|

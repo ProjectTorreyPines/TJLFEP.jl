@@ -1,4 +1,5 @@
 using Distributed
+using Serialization
 
 """Unpack `mainsub` return for PROCESS_IN=5: `((growth, ep, mt), buffers)`."""
 function _unpack_mainsub!(ret)
@@ -436,6 +437,243 @@ function runTHD_from_gacode(
     _apply_runthd_expro_setup!(Options, profile, expro)
     return _runTHD_core!(Options, profile, expro; printout=printout, use_gpu=use_gpu, parallel=parallel)
 end  # runTHD_from_gacode
+
+"""Apply `tjlfep_complete_output` padding on `SFmin`, then write α profiles (matches `_runTHD_core`)."""
+function _gacode_alpha_postprocess!(
+    SFmin::Vector{Float64},
+    Options::Options,
+    profile::profile,
+    expro;
+    out_dir::AbstractString=".",
+    printout::Bool=true,
+)
+    ni, Ti, dlnnidr, dlntidr = expro.ni, expro.Ti, expro.dlnnidr, expro.dlntidr
+    scan_n = Options.SCAN_N
+    dndr_crit_out = fill(NaN, profile.NR)
+    dpdr_crit_out = fill(NaN, profile.NR)
+
+    if Options.THRESHOLD_FLAG != 0 || !((Options.PROCESS_IN == 4) || (Options.PROCESS_IN == 5))
+        return SFmin, dndr_crit_out, dpdr_crit_out
+    end
+
+    SFmin_out = fill(0.0, profile.NR)
+    SFmin, SFmin_out, ir_min, ir_max, l_accept_profile = tjlfep_complete_output(SFmin, Options, profile)
+
+    if (ir_min - Options.IRS + 1) > 1
+        if ir_min - Options.IRS > scan_n
+            SFmin[1:scan_n] = Options.FACTOR_MAX_PROFILE[1:scan_n]
+        else
+            SFmin[1:(ir_min - Options.IRS)] = Options.FACTOR_MAX_PROFILE[1:(ir_min - Options.IRS)]
+        end
+        if Options.IRS > 1
+            SFmin_out[1:(Options.IRS - 1)] .= Options.FACTOR_MAX_PROFILE[1]
+        end
+        if ir_min - Options.IRS > scan_n
+            SFmin_out[Options.IRS:(scan_n + 1)] = Options.FACTOR_MAX_PROFILE[1:scan_n]
+        else
+            SFmin_out[Options.IRS:(ir_min - 1)] = Options.FACTOR_MAX_PROFILE[1:(ir_min - Options.IRS)]
+        end
+    end
+
+    if (ir_max - Options.IRS + 1) < scan_n
+        SFmin[(ir_max - Options.IRS + 2):scan_n] =
+            Options.FACTOR_MAX_PROFILE[(ir_max - Options.IRS + 2):scan_n]
+        if Options.IRS + scan_n - 1 < profile.NR
+            SFmin_out[(Options.IRS + scan_n):profile.NR] .= Options.FACTOR_MAX_PROFILE[scan_n]
+        end
+        SFmin_out[(ir_max + 1):(Options.IRS + scan_n - 1)] =
+            Options.FACTOR_MAX_PROFILE[(ir_max - Options.IRS + 2):scan_n]
+    end
+
+    if Options.INPUT_PROFILE_METHOD == 2
+        dndr_crit = fill(10000.0, scan_n)
+        for i in 1:scan_n
+            if SFmin[i] < 9000.0
+                dndr_crit[i] = SFmin[i] * ni[Int(Options.IR_EXP[i])] * dlnnidr[Int(Options.IR_EXP[i])]
+            elseif (i < ir_min - Options.IRS + 1) || (i > ir_max - Options.IRS + 1)
+                dndr_crit[i] = Options.FACTOR_MAX_PROFILE[i] * ni[Int(Options.IR_EXP[i])] * dlnnidr[Int(Options.IR_EXP[i])]
+            end
+        end
+        dndr_crit, dndr_crit_out, _, _, _ = tjlfep_complete_output(dndr_crit, Options, profile)
+        if printout
+            open(joinpath(out_dir, "alpha_dndr_crit.input"), "w") do io
+                println(io, "Density critical gradient (10^19/m^4)")
+                println(io, dndr_crit_out)
+            end
+        end
+
+        dpdr_crit = fill(10000.0, scan_n)
+        nr = profile.NR
+        dpdr_EP = Vector{Float64}(undef, nr)
+        for i in 1:nr
+            dpdr_EP[i] = ni[i] * Ti[i] * (dlnnidr[i] + dlntidr[i]) * 0.16022
+        end
+        for i in 1:scan_n
+            if SFmin[i] < 9000.0
+                if (Options.PROCESS_IN == 4) || (Options.PROCESS_IN == 5)
+                    dpdr_scale = if Options.SCAN_METHOD == 1
+                        SFmin[i]
+                    elseif Options.SCAN_METHOD == 2
+                        denom = dlnnidr[Options.IR_EXP[i]] + dlntidr[Options.IR_EXP[i]]
+                        denom == 0 ? SFmin[i] :
+                            (SFmin[i] * dlnnidr[Options.IR_EXP[i]] + dlntidr[Options.IR_EXP[i]]) / denom
+                    else
+                        SFmin[i]
+                    end
+                    dpdr_crit[i] = dpdr_scale * dpdr_EP[Options.IR_EXP[i]]
+                end
+            elseif (i < ir_min - Options.IRS + 1) || (i > ir_max - Options.IRS + 1)
+                dpdr_crit[i] = Options.FACTOR_MAX_PROFILE[i] * dpdr_EP[Options.IR_EXP[i]]
+            end
+        end
+        dpdr_crit, dpdr_crit_out, _, _, _ = tjlfep_complete_output(dpdr_crit, Options, profile)
+        if printout
+            open(joinpath(out_dir, "alpha_dpdr_crit.input"), "w") do io
+                println(io, "Pressure critical gradient (10 kPa/m)")
+                println(io, dpdr_crit_out)
+            end
+        end
+    end
+
+    return SFmin, dndr_crit_out, dpdr_crit_out
+end
+
+"""
+Slurm task id (0-based): `SLURM_ARRAY_TASK_ID` for `--array` jobs, else `SLURM_PROCID`
+for multi-task jobs (`srun -n SCAN_N`), else `0`.
+"""
+function slurm_array_task_id()
+    for key in ("SLURM_ARRAY_TASK_ID", "SLURM_ARRAY_TASKID")
+        haskey(ENV, key) || continue
+        return parse(Int, ENV[key])
+    end
+    if haskey(ENV, "SLURM_PROCID")
+        return parse(Int, ENV["SLURM_PROCID"])
+    end
+    return 0
+end
+
+"""
+    run_gacode_scan_task(gacode_file, tglfep_file, scan_index; out_dir, use_gpu, printout)
+
+Run **one** radius of a `SCAN_N` job (for Slurm `--array=0-(SCAN_N-1)`).
+Writes `task_<scan_index>.jls` under `out_dir` with `sfmin`, `width`, `kymark`, and optional
+`out.scalefactor_r###` when `printout=true`.
+
+Use `finalize_gacode_scan` after all array tasks finish to build α profiles.
+"""
+function run_gacode_scan_task(
+    gacode_file::AbstractString,
+    tglfep_file::AbstractString,
+    scan_index::Integer;
+    out_dir::AbstractString=".",
+    use_gpu::Bool=false,
+    printout::Bool=false,
+)
+    mkpath(out_dir)
+    Options, profile, expro = preprocess_gacode_inputs(gacode_file, tglfep_file)
+    _apply_runthd_expro_setup!(Options, profile, expro)
+    1 <= scan_index <= Options.SCAN_N ||
+        error("scan_index=$scan_index out of range 1:$(Options.SCAN_N)")
+
+    ep = deepcopy(Options)
+    mt = deepcopy(profile)
+    ep.IR = ep.IR_EXP[scan_index]
+    ir = ep.IR
+    ep.SUFFIX = "_r" * lpad(string(ir), 3, '0')
+    ep.FACTOR_IN = ep.FACTOR[scan_index]
+
+    logmsg = printout ? println : (_, args...) -> nothing
+    logmsg("scan_index=$scan_index ir=$ir use_gpu=$use_gpu host=$(gethostname())")
+
+    ret = TJLFEP.mainsub(ep, mt, printout; use_gpu=use_gpu)
+    growth, ep_out, mt_out = _unpack_mainsub!(ret)
+    sfmin = ep_out.FACTOR_IN
+    width = coalesce(ep_out.WIDTH_IN, ep_out.WIDTH, NaN)
+    kymark = coalesce(ep_out.KYMARK, NaN)
+
+    if printout
+        sf_buf, wf_buf_all = ret[2]
+        suffix_i = coalesce(ep_out.SUFFIX, "")
+        if sf_buf !== nothing && !isempty(sf_buf)
+            open(joinpath(out_dir, "out.scalefactor" * suffix_i), "w") do io
+                for line in sf_buf
+                    println(io, line)
+                end
+            end
+        end
+        if wf_buf_all !== nothing
+            for (str_wf_file, wfbuf) in wf_buf_all
+                if wfbuf !== nothing && !isempty(wfbuf)
+                    open(joinpath(out_dir, str_wf_file), "w") do io
+                        for line in wfbuf
+                            println(io, line)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    result = (
+        scan_index=scan_index,
+        ir=ir,
+        sfmin=Float64(sfmin),
+        width=Float64(width),
+        kymark=Float64(kymark),
+        use_gpu=use_gpu,
+        hostname=gethostname(),
+    )
+    task_file = joinpath(out_dir, "task_$(scan_index).jls")
+    open(task_file, "w") do io
+        serialize(io, result)
+    end
+    logmsg("wrote $task_file sfmin=$sfmin")
+    return result
+end
+
+"""
+    finalize_gacode_scan(gacode_file, tglfep_file, tasks_dir; printout)
+
+Merge per-radius `task_*.jls` files and write `alpha_*_crit.input` (and optional `out.TGLFEP` header).
+"""
+function finalize_gacode_scan(
+    gacode_file::AbstractString,
+    tglfep_file::AbstractString,
+    tasks_dir::AbstractString;
+    printout::Bool=true,
+)
+    Options, profile, expro = preprocess_gacode_inputs(gacode_file, tglfep_file)
+    _apply_runthd_expro_setup!(Options, profile, expro)
+    scan_n = Options.SCAN_N
+
+    SFmin = Vector{Float64}(undef, scan_n)
+    width = Vector{Float64}(undef, scan_n)
+    kymark_out = Vector{Float64}(undef, scan_n)
+    for i in 1:scan_n
+        task_file = joinpath(tasks_dir, "task_$(i).jls")
+        isfile(task_file) || error("missing array task output: $task_file")
+        result = open(task_file) do io
+            deserialize(io)
+        end
+        SFmin[i] = result.sfmin
+        width[i] = result.width
+        kymark_out[i] = result.kymark
+    end
+
+    SFmin, dndr_out, dpdr_out = _gacode_alpha_postprocess!(
+        SFmin, Options, profile, expro; out_dir=tasks_dir, printout=printout)
+
+    open(joinpath(tasks_dir, "sfmin_scan.txt"), "w") do io
+        for (i, s) in enumerate(SFmin)
+            println(io, i, " ", Options.IR_EXP[i], " ", s)
+        end
+    end
+
+    println("finalize_gacode_scan: merged $scan_n tasks -> $tasks_dir")
+    return width, kymark_out, SFmin, dpdr_out, dndr_out
+end
+
 """
 checkInput(inputTJLF::InputTJLF)
 
