@@ -53,11 +53,12 @@ cd build
 ./submit_gacode_scan20_gpu.sh
 # or manually:
 sbatch batch_run_gacode_scan20_gpu_5nodes.sh
-# after scan completes:
-OUT_DIR=build/gacode_scan20_<JOB_ID>_tasks sbatch batch_merge_gacode_scan20.sh
 ```
 
-Alternative (20 separate array tasks, up to 20 nodes): `sbatch batch_run_gacode_scan20_gpu_array.sh`.
+Scan and merge run in one job (`srun` then `finalize_gacode_scan` on the batch head node CPU).
+
+Alternative (20 separate array tasks): `sbatch batch_run_gacode_scan20_gpu_array.sh`, then
+`OUT_DIR=build/gacode_scan20_<ARRAY_JOB_ID>_tasks sbatch batch_merge_gacode_scan20.sh`.
 
 Inputs: `input.gacode` + `build/debug_nb6/input_scan20.TGLFEP` (`N_BASIS=6`, `SCAN_N=20`).
 

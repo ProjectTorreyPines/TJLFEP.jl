@@ -1,5 +1,6 @@
 #!/bin/bash -l
 # Merge array task outputs -> alpha_dndr_crit.input, alpha_dpdr_crit.input
+# (Only needed for batch_run_gacode_scan20_gpu_array.sh; 5-node job merges in-job.)
 #SBATCH -A m3739_g
 #SBATCH -q premium
 #SBATCH -N 1
@@ -13,7 +14,7 @@
 set -euo pipefail
 
 module load julia/1.11.7
-export JULIA_DEPOT_PATH="${PSCRATCH}/.julia"
+export JULIA_DEPOT_PATH="${PSCRATCH}/.julia${JULIA_DEPOT_PATH:+:${JULIA_DEPOT_PATH}}"
 export TJLFEP_FILE_ONLY=1
 
 TJLFEP_ROOT="${TJLFEP_ROOT:-/pscratch/sd/t/tneiser/.julia/dev/TJLFEP}"

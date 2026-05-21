@@ -13,7 +13,7 @@
 set -euo pipefail
 
 module load julia/1.11.7
-export JULIA_DEPOT_PATH="${PSCRATCH}/.julia"
+export JULIA_DEPOT_PATH="${PSCRATCH}/.julia${JULIA_DEPOT_PATH:+:${JULIA_DEPOT_PATH}}"
 export TJLFEP_FILE_ONLY=1
 export TJLFEP_DEBUG=0
 

@@ -11,8 +11,8 @@
 
 set -euo pipefail
 
+module load cudatoolkit/12.9
 module load julia/1.11.7
-module load cudatoolkit/12.4 2>/dev/null || module load cudatoolkit 2>/dev/null || true
 
 export JULIA_DEPOT_PATH="${PSCRATCH}/.julia"
 

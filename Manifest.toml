@@ -2,7 +2,7 @@
 
 julia_version = "1.11.7"
 manifest_format = "2.0"
-project_hash = "39fd319f5fa4911a7960d30e2a9c1e998e8e0eec"
+project_hash = "42e80384fb6e5bf18ff91503c49a82b3a01a413d"
 
 [[deps.ADAS]]
 deps = ["AbstractTrees", "Colors", "Downloads", "FileIO", "Interpolations", "JLD2", "LaTeXStrings", "Logging", "MD5", "RecipesBase"]
