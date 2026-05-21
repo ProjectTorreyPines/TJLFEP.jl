@@ -33,7 +33,8 @@ TJLFEP_ROOT="${TJLFEP_ROOT:-/pscratch/sd/t/tneiser/.julia/dev/TJLFEP}"
 export CASE_DIR="${CASE_DIR:-${TJLFEP_ROOT}/src/DIIIDfiles/202017C42_500ms_v3.1}"
 export GACODE_FILE="${GACODE_FILE:-${CASE_DIR}/input.gacode}"
 export TGLFEP_FILE="${TGLFEP_FILE:-${TJLFEP_ROOT}/build/debug_nb6/input_scan20.TGLFEP}"
-export OUT_DIR="${OUT_DIR:-${TJLFEP_ROOT}/build/gacode_scan20_${SLURM_JOB_ID}_tasks}"
+# Always use this job id (do not inherit OUT_DIR from a prior manual merge).
+export OUT_DIR="${TJLFEP_ROOT}/build/gacode_scan20_${SLURM_JOB_ID}_tasks"
 
 cd "${TJLFEP_ROOT}/build"
 

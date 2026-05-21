@@ -9,6 +9,11 @@ ENV["TJLFEP_FILE_ONLY"] = "1"
 using Pkg
 Pkg.activate(normpath(@__DIR__, ".."))
 
+# Load CUDA before TJLFEP so TJLFEPCUDAExt registers GPU eigensolver hooks.
+if get(ENV, "USE_GPU", "") == "1"
+    using CUDA
+end
+
 using TJLFEP
 using TJLF
 using LinearAlgebra

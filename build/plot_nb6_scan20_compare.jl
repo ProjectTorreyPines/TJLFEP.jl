@@ -17,6 +17,31 @@ const FORTRAN_LABEL = get(ENV, "FORTRAN_LABEL", "Fortran")
 const JULIA_LABEL = get(ENV, "JULIA_LABEL", "Julia")
 const PLOT_TITLE = get(ENV, "PLOT_TITLE", "N_BASIS=6, SCAN_N=20 (10 nodes)")
 
+function read_sfmin(dir::String)
+    p = joinpath(dir, "out.TGLFEP")
+    if isfile(p)
+        lines = readlines(p)
+        i = findfirst(l -> strip(l) == "SFmin", lines)
+        out = Float64[]
+        for line in lines[i+1:end]
+            s = strip(line)
+            isempty(s) && break
+            startswith(s, "The ") && break
+            if startswith(s, "[")
+                m = match(r"\[(.*)\]", s)
+                return parse.(Float64, strip.(split(m.captures[1], ",")))
+            end
+            x = tryparse(Float64, split(s, " ")[1])
+            x === nothing && break
+            push!(out, x)
+        end
+        return out
+    end
+    p = joinpath(dir, "sfmin_scan.txt")
+    isfile(p) || error("need out.TGLFEP or sfmin_scan.txt in $dir")
+    return [parse(Float64, split(strip(line))[3]) for line in readlines(p) if !isempty(strip(line))]
+end
+
 function read_alpha_file(path::String)
     lines = readlines(path)
     body = strip(lines[2])
@@ -33,22 +58,6 @@ function read_alpha_file(path::String)
         push!(vals, x)
     end
     return strip(lines[1]), vals
-end
-
-function parse_sfmin(path::String)
-    isfile(path) || return missing
-    for line in reverse(readlines(path))
-        s = strip(line)
-        isempty(s) && continue
-        startswith(s, "factor") && continue
-        startswith(s, "---") && continue
-        startswith(s, "omega") && continue
-        startswith(s, "Frequencies") && continue
-        parts = split(s)
-        x = tryparse(Float64, parts[1])
-        x !== nothing && return x
-    end
-    return missing
 end
 
 prof = read_input_profile(joinpath(CASE, "dump.profile"))
@@ -113,20 +122,11 @@ combined = joinpath(OUTDIR, "alpha_crit_grads_compare.png")
 savefig(p, combined)
 println("Wrote ", combined)
 
-# SFmin at each scan radius
-f_sf = sort(filter(f -> startswith(f, "out.scalefactor_r"), readdir(FORTRAN_DIR)))
-j_sf = sort(filter(f -> startswith(f, "out.scalefactor_r"), readdir(JULIA_DIR)))
-n = min(length(f_sf), length(j_sf), length(ir_exp))
-sf_f = Float64[]
-sf_j = Float64[]
-for k in 1:n
-    ff = parse_sfmin(joinpath(FORTRAN_DIR, f_sf[k]))
-    jj = parse_sfmin(joinpath(JULIA_DIR, j_sf[k]))
-    push!(sf_f, something(ff, NaN))
-    push!(sf_j, something(jj, NaN))
-end
+sf_f = read_sfmin(FORTRAN_DIR)
+sf_j = read_sfmin(JULIA_DIR)
+n = min(length(sf_f), length(sf_j), length(ir_exp))
 p_sf = plot(
-    rho[1:n], sf_f;
+    rho[1:n], sf_f[1:n];
     label = FORTRAN_LABEL,
     lw = 2,
     marker = :circle,
@@ -137,9 +137,9 @@ p_sf = plot(
     legend = :best,
     size = (900, 550),
 )
-plot!(p_sf, rho[1:n], sf_j; label = JULIA_LABEL, lw = 2, marker = :diamond, color = :red, linestyle = :dash)
+plot!(p_sf, rho[1:n], sf_j[1:n]; label = JULIA_LABEL, lw = 2, marker = :diamond, color = :red, linestyle = :dash)
 sf_path = joinpath(OUTDIR, "sfmin_compare.png")
 savefig(p_sf, sf_path)
-rel_sf = abs.(sf_j .- sf_f) ./ max.(abs.(sf_f), 1e-30)
+rel_sf = abs.(sf_j[1:n] .- sf_f[1:n]) ./ max.(abs.(sf_f[1:n]), 1e-30)
 println("SFmin: max rel err = ", maximum(rel_sf), " mean = ", sum(rel_sf) / n)
 println("Wrote ", sf_path)

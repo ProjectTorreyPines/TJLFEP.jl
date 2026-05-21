@@ -7,6 +7,10 @@ ENV["TJLFEP_FILE_ONLY"] = "1"
 using Pkg
 Pkg.activate(normpath(@__DIR__, ".."))
 
+if get(ENV, "USE_GPU", "") == "1"
+    using CUDA
+end
+
 using TJLFEP
 using TJLF
 

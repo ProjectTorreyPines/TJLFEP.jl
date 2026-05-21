@@ -13,7 +13,7 @@ const ROOT = normpath(@__DIR__, "..")
 const CASE = get(ENV, "CASE_DIR", joinpath(ROOT, "src", "DIIIDfiles", "202017C42_500ms_v3.1"))
 const GACODE = get(ENV, "GACODE_FILE", joinpath(CASE, "input.gacode"))
 const TGLFEP = get(ENV, "TGLFEP_FILE", joinpath(ROOT, "build", "debug_nb6", "input_scan20.TGLFEP"))
-const OUT_DIR = get(ENV, "OUT_DIR", error("set OUT_DIR to gacode_scan20_<jobid>_tasks directory"))
+const OUT_DIR = get(() -> error("set OUT_DIR to gacode_scan20_<jobid>_tasks directory"), ENV, "OUT_DIR")
 
 @assert isfile(GACODE)
 @assert isfile(TGLFEP)
