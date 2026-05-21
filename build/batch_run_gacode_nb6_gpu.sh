@@ -1,6 +1,6 @@
 #!/bin/bash -l
 # nb6 SCAN_N=1 from input.gacode + input.TGLFEP on 1 GPU node.
-#SBATCH -A m3739
+#SBATCH -A m3739_g
 #SBATCH -q premium
 #SBATCH -N 1
 #SBATCH -t 01:00:00
