@@ -43,18 +43,20 @@ include("plotCritGrads.jl")
 #sgould this line just be the big struct?
 export profile, Options, InputTJLF
 export readMTGLF, readTGLFEP, TJLF_map, readEXPRO, save_TGLFEP, save_MTGLF, save_EXPRO, save_all
-export read_input_profile, readprofile, expro_dict_from_profile, ir_exp_from_scan, setup_fortran_file_inputs
+export read_input_profile, readprofile, expro_dict_from_profile, ir_exp_from_scan, setup_fortran_file_inputs, setup_gacode_file_inputs, profile_from_gacode
+export expro_vectors_from_gacode, preprocess_gacode_inputs
 export expro_species_for_gacode_is_ep, read_gacode_scalar_field, read_gacode_ion_field
 export expro_bound_deriv, expro_log_gradients, read_expro_for_alpha, compute_alpha_crit_profiles
 export convert_input, revert_input
 export tjlfep_complete_output
-export runTHD, runTHDs
+export runTHD, runTHD_from_gacode, runTHDs
 
 export TJLFEP_generate_input, readline_values
 
 if !_FILE_ONLY
     export InputTGLFEP
     export populate_tjlfep_profile!, update_input_tjlfep!
+    export preprocess_imas_inputs, save_imas_preprocessed_inputs, remap_extraEP_for_fortran_save!
 end
 
 export make_crit_grad_plots

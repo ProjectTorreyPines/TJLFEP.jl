@@ -28,9 +28,14 @@ const THREADS_PER_WORKER = parse(Int, get(ENV, "JULIA_WORKER_THREADS",
 
 const TGLFEP_FILE = get(ENV, "TGLFEP_FILE",
     joinpath(TJLFEP_ROOT, "build", "debug_prod", "input.TGLFEP"))
+const GACODE_DUMP = get(ENV, "GACODE_DUMP", joinpath(CASE_DIR, "input.gacode"))
+if !haskey(ENV, "GACODE_DUMP")
+    ENV["GACODE_DUMP"] = GACODE_DUMP
+end
 
 @assert isfile(joinpath(CASE_DIR, "dump.profile"))
 @assert isfile(TGLFEP_FILE)
+@assert isfile(GACODE_DUMP)
 
 logmsg("=== precompile on manager (depot=", get(ENV, "JULIA_DEPOT_PATH", "<default>"), ") ===")
 logmsg("Pkg.instantiate...")
@@ -61,6 +66,7 @@ if haskey(ENV, "JULIA_DEPOT_PATH")
 end
 worker_env["JULIA_PKG_PRECOMPILE_AUTO"] = "0"
 worker_env["TJLFEP_FILE_ONLY"] = get(ENV, "TJLFEP_FILE_ONLY", "1")
+worker_env["GACODE_DUMP"] = GACODE_DUMP
 
 if haskey(ENV, "SLURM_JOB_ID") || haskey(ENV, "SLURM_JOBID")
     ntasks = parse(Int, get(ENV, "SLURM_NTASKS", string(SCAN_N)))

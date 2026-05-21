@@ -1,52 +1,71 @@
 """
-    runTHD(dd, rho, OptionsDict; ...)
+    remap_extraEP_for_fortran_save!(extraEP, ep_slot)
 
-IMAS/FUSE entry point (not loaded when `TJLFEP_FILE_ONLY=1`).
+Remap EP species data from `ep_slot` to `ep_slot-1` in `extraEP` so saved EXPRO
+matches the Fortran 3-species convention.
 """
-function runTHD(dd::IMAS.dd, rho::AbstractVector{Float64}, OptionsDict::Dict{String, Any}; printout::Bool=false, saveFiles::Bool=false, dir::String="ddFiles", use_gpu::Bool=false)
+function remap_extraEP_for_fortran_save!(extraEP::Dict, ep_slot::Int)
+    for prefix in ("DENS", "TEMP", "DLNNDR", "DLNTDR")
+        extraEP["$(prefix)_$(ep_slot - 1)"] = extraEP["$(prefix)_$ep_slot"]
+        delete!(extraEP, "$(prefix)_$ep_slot")
+    end
+    return extraEP
+end
 
-    # Default values for EXPRO:
-    ni = TJLFEP.exproConst.ni
-    Ti = TJLFEP.exproConst.Ti
-    dlnnidr = TJLFEP.exproConst.dlnnidr
-    dlntidr = TJLFEP.exproConst.dlntidr
-    cs = TJLFEP.exproConst.cs
-    rmin_ex = TJLFEP.exproConst.rmin_ex
-    omegaGAM = TJLFEP.exproConst.omegaGAM
-    gammaE = TJLFEP.exproConst.gammaE
-    gammap = TJLFEP.exproConst.gammap
-    # These should be set from the working directory, but these test cases are good for now:
+"""
+    save_imas_preprocessed_inputs(Options, profile, extraEP, dir)
 
+Write input.TGLFEP / input.MTGLF / input.EXPRO after Fortran-style EP remapping.
+"""
+function save_imas_preprocessed_inputs(Options, profile, extraEP::Dict, dir::AbstractString)
+    ep_slot = extraEP["EP_SLOT"]
+    extraEP_save = deepcopy(extraEP)
+    remap_extraEP_for_fortran_save!(extraEP_save, ep_slot)
+    save_all(Options, profile, extraEP_save, dir)
+    return nothing
+end
+
+"""
+    preprocess_imas_inputs(dd, rho, OptionsDict; verbose=false)
+
+Build `Options`, `profile`, and `extraEP` from IMAS without running TJLF.
+Also returns EP-slot EXPRO vectors used downstream by `runTHD`.
+"""
+function preprocess_imas_inputs(dd::IMAS.dd, rho::AbstractVector{Float64}, OptionsDict::Dict{String, Any};
+        verbose::Bool=false)
     input_tglfep, extraEP = TJLFEP.InputTGLFEP(dd, rho; is_ep=OptionsDict["IS_EP"])
 
-    println("printing species masses")
-    for is = 1:extraEP["NS"]
-        println("mass[", is, "] = ", extraEP["MASS"][is])
+    if verbose
+        println("printing species masses")
+        for is = 1:extraEP["NS"]
+            println("mass[", is, "] = ", extraEP["MASS"][is])
+        end
     end
     ep_slot = extraEP["EP_SLOT"]
-    println("EP mass = ", getfield(input_tglfep[1], Symbol("MASS_$ep_slot")))
+    if verbose
+        println("EP mass = ", getfield(input_tglfep[1], Symbol("MASS_$ep_slot")))
+    end
 
     prof = TJLFEP.profile{Float64}(extraEP["NR"], extraEP["NS"])
     profile = TJLFEP.populate_tjlfep_profile!(prof, extraEP, input_tglfep, extraEP["NR"], extraEP["NS"])
 
     Options = TJLFEP.Options{Float64}(OptionsDict["SCAN_N"], OptionsDict["WIDTH_IN_FLAG"], OptionsDict["nn"], extraEP["NR"], OptionsDict["jtscale_max"], OptionsDict["nmodes"])
 
-    if (OptionsDict["KY_MODEL"] == 0)
+    if OptionsDict["KY_MODEL"] == 0
         Options.NTOROIDAL = 4
     else
         Options.NTOROIDAL = 3
     end
-        
-    if (OptionsDict["PROCESS_IN"] == 4 || OptionsDict["PROCESS_IN"] == 5)
+
+    if OptionsDict["PROCESS_IN"] == 4 || OptionsDict["PROCESS_IN"] == 5
         Options.NN = OptionsDict["nn"]
     end
 
-    if (!OptionsDict["FACTOR_IN_PROFILE"])
+    if !OptionsDict["FACTOR_IN_PROFILE"]
         Options.FACTOR = fill(OptionsDict["FACTOR_IN"], OptionsDict["SCAN_N"])
     end
     Options.FACTOR_MAX_PROFILE = Options.FACTOR
 
-    # populating other fields goes here
     for key in keys(OptionsDict)
         if hasfield(typeof(Options), Symbol(key))
             setfield!(Options, Symbol(key), OptionsDict[key])
@@ -56,12 +75,6 @@ function runTHD(dd::IMAS.dd, rho::AbstractVector{Float64}, OptionsDict::Dict{Str
     Options.IR_EXP = fill(0, Options.SCAN_N)
     Options.NMODES = OptionsDict["nmodes"]
 
-    # IS_EP in Options must be N_ION+1 so that IS_EP+1 = ep_slot and j_ion=2:IS_EP = thermal ions only
-    # Options.IS_EP = extraEP["N_ION"] + 1
-
-    # EP species is always at the last slot (NS = N_ION + 2)
-    # ep_slot = extraEP["NS"]
-    ep_slot = extraEP["EP_SLOT"]
     Options.IS_EP = ep_slot - 1
     ni = extraEP["DENS_$ep_slot"]
     Ti = extraEP["TEMP_$ep_slot"]
@@ -73,10 +86,7 @@ function runTHD(dd::IMAS.dd, rho::AbstractVector{Float64}, OptionsDict::Dict{Str
     gammap = extraEP["gammap"]
     omegaGAM = extraEP["omegaGAM"]
 
-    dpdr_EP = fill(NaN, profile.NR)
-    Options.IR_EXP = fill(0, Options.SCAN_N)
-    if (Options.INPUT_PROFILE_METHOD == 2)
-        # Allotting Ir_exp not from profile.
+    if Options.INPUT_PROFILE_METHOD == 2
         Options.IR_EXP = fill(0, Options.SCAN_N)
         for i = 1:Options.SCAN_N
             if Options.SCAN_N != 1
@@ -87,39 +97,44 @@ function runTHD(dd::IMAS.dd, rho::AbstractVector{Float64}, OptionsDict::Dict{Str
             Options.IR_EXP[i] = jr_exp
         end
 
-        ir_exp = Options.IR_EXP
+        dpdr_EP = similar(ni, Float64)
         for i in eachindex(dpdr_EP)
-            dpdr_EP[i] = ni[i]*Ti[i]*(dlnnidr[i]+dlntidr[i])# This has some small changes from old main
+            dpdr_EP[i] = ni[i] * Ti[i] * (dlnnidr[i] + dlntidr[i])
         end
-        #println(Options.FACTOR)
         dpdr_EP_abs = abs.(dpdr_EP)
         dpdr_EP_max = maximum(dpdr_EP_abs)
-        dpdr_EP_max_loc = argmax(dpdr_EP_abs)
-        n_at_max = ni[dpdr_EP_max_loc]
-        if (Options.PROCESS_IN != 5)
+        if Options.PROCESS_IN != 5
             for ir = 1:Options.SCAN_N
-                # Options.FACTOR = Options.FACTOR*dpdr_EP_max/dpdr_EP_abs[ir_exp[ir]] 
-                # matches fortran
-                Options.FACTOR[ir] = Options.FACTOR[ir]*dpdr_EP_max/dpdr_EP_abs[Options.IR_EXP[ir]] 
+                Options.FACTOR[ir] = Options.FACTOR[ir] * dpdr_EP_max / dpdr_EP_abs[Options.IR_EXP[ir]]
             end
         end
         Options.FACTOR_MAX_PROFILE .= Options.FACTOR
     end
 
     Options.F_REAL .= 1.0
-    if (Options.REAL_FREQ == 1)
-        # cs is in CGS (cm/s); rmin_ex is in metres — multiply by 100 to get cm so c_s/a has units s⁻¹
-        Options.F_REAL .= (cs[:] / (rmin_ex[profile.NR] * 100.0)) / (2*pi*1.0e3)
+    if Options.REAL_FREQ == 1
+        Options.F_REAL .= (cs[:] / (rmin_ex[profile.NR] * 100.0)) / (2 * pi * 1.0e3)
     end
 
-    if (saveFiles)
-        # Remap EP data from ep_slot to IS_EP (= ep_slot-1) so the written EXPRO
-        # has EP at index IS_EP, matching the Fortran convention.
-        for prefix in ["DENS", "TEMP", "DLNNDR", "DLNTDR"]
-            extraEP["$(prefix)_$(ep_slot-1)"] = extraEP["$(prefix)_$ep_slot"]
-            delete!(extraEP, "$(prefix)_$ep_slot")
-        end
-        save_all(Options, profile, extraEP, dir)
+    expro_state = (; ni, Ti, dlnnidr, dlntidr, cs, rmin_ex, gammaE, gammap, omegaGAM, ep_slot)
+    return Options, profile, extraEP, expro_state
+end
+
+"""
+    runTHD(dd, rho, OptionsDict; ...)
+
+IMAS/FUSE entry point (not loaded when `TJLFEP_FILE_ONLY=1`).
+"""
+function runTHD(dd::IMAS.dd, rho::AbstractVector{Float64}, OptionsDict::Dict{String, Any}; printout::Bool=false, saveFiles::Bool=false, dir::String="ddFiles", use_gpu::Bool=false)
+
+    Options, profile, extraEP, expro_state = preprocess_imas_inputs(dd, rho, OptionsDict; verbose=printout)
+    ni = expro_state.ni
+    Ti = expro_state.Ti
+    dlnnidr = expro_state.dlnnidr
+    dlntidr = expro_state.dlntidr
+
+    if saveFiles
+        save_imas_preprocessed_inputs(Options, profile, extraEP, dir)
     end
 
     # deepcopy is required so as to avoid overwriting of data:
