@@ -79,7 +79,10 @@ function _apply_runthd_expro_setup!(Options::Options, profile::profile, expro)
     end
 
     if Options.REAL_FREQ == 1
-        Options.F_REAL .= (cs ./ rmin_ex[nr]) ./ (2 * pi * 1.0e3)
+        # EXPRO `cs`/`rmin_ex` from readEXPRO are length 201; profile.NR is the gacode grid (e.g. 101).
+        # Match Fortran: F_REAL(i) = cs(i) / rmin_ex(NR) / (2π×1e3) for i = 1:NR.
+        rmin_ref = rmin_ex[min(nr, length(rmin_ex))]
+        Options.F_REAL .= (cs[1:nr] ./ rmin_ref) ./ (2 * pi * 1.0e3)
     end
     return nothing
 end
