@@ -7,7 +7,7 @@
 #   cd build && sbatch sysimage/batch_build_gpu_sysimage_fileonly.sh
 #
 #SBATCH -A m3739_g
-#SBATCH -q premium
+#SBATCH -q regular
 #SBATCH -N 1
 #SBATCH -t 02:00:00
 #SBATCH -C gpu
