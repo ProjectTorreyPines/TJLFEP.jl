@@ -94,8 +94,7 @@ if mkdir -p "${CFS_DIR}" 2>/dev/null; then
     chgrp m3739 "${CFS_DIR}/$(basename "${SO}")" 2>/dev/null || true
     SHA_FILE="${CFS_DIR}/$(basename "${SO}").sha"
     {
-        for repo in "${TJLFEP_ROOT}" "${TJLFEP_ROOT}/../TJLF" "${FUSE_ROOT}" \
-                    "${FUSE_ROOT}/../IMASdd" "${FUSE_ROOT}/../IMASggd"; do
+        for repo in "${TJLFEP_ROOT}" "${TJLFEP_ROOT}/../TJLF" "${FUSE_ROOT}"; do
             printf '%s=%s\n' "$(basename "${repo}")" \
                 "$(git -C "${repo}" describe --always --dirty --tags 2>/dev/null || echo unknown)"
         done

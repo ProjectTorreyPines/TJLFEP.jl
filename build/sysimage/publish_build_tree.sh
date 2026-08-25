@@ -4,10 +4,11 @@
 #
 #   bash build/sysimage/publish_build_tree.sh
 #
-# Stages the 9 dev repos the FUSE manifest path-deps on (working trees, INCLUDING
+# Stages the dev repos the FUSE manifest path-deps on (working trees, INCLUDING
 # uncommitted mods and .git/ for provenance) into $CFS_DIR/src/<name>, rewrites the
 # absolute path deps in the staged FUSE Manifest to relative sibling paths, and records
 # per-repo git state in src/BUILD_STATE. Idempotent: re-run to refresh (rsync --delete).
+# IMASdd/IMASggd resolve from FuseRegistry (freed 2026-08-25) and are not staged.
 #
 # Perms: the original sharing bug was `rsync -a`/`cp` preserving the maintainer's primary
 # group. Here rsync runs WITHOUT -g/-o so setgid parent dirs assign group m3739, with an
@@ -23,7 +24,7 @@ SCRATCH_DEV="${SCRATCH_DEV:-/pscratch/sd/t/tneiser/.julia/dev}"
 HOME_DEV="${HOME_DEV:-${HOME}/.julia/dev}"
 GROUP=m3739
 
-SCRATCH_REPOS=(TJLFEP TJLF FUSE IMASdd IMASggd ALPHA TurbulentTransport)
+SCRATCH_REPOS=(TJLFEP TJLF FUSE ALPHA TurbulentTransport)
 HOME_REPOS=(CHEASE TroyonBetaNN)
 
 mkdir -p "${SRC}"
@@ -46,7 +47,7 @@ for r in "${HOME_REPOS[@]}";    do stage "${HOME_DEV}"    "$r"; done
 # Rewrite the FUSE manifest's absolute dev paths (maintainer scratch/home) to relative
 # sibling paths, which resolve against the staged project dir for every user.
 FMAN="${SRC}/FUSE/Manifest.toml"
-for r in CHEASE TroyonBetaNN IMASdd IMASggd; do
+for r in CHEASE TroyonBetaNN; do
     sed -i "s|^path = \".*/\.julia/dev/${r}\"$|path = \"../${r}\"|" "${FMAN}"
 done
 if grep -n 'path = "/' "${FMAN}"; then
