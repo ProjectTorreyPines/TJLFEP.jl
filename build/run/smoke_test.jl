@@ -1,22 +1,17 @@
 # Single-process DIII-D smoke test (no SlurmClusterManager).
-# Run from TJLFEP/build:
-#   julia --project=.. --sysimage=TJLFEP_cpu_sysimage.so smoke_test.jl
+# Needs a project that resolves GACODE/IMAS/TurbulentTransport (TJLFEP weak deps) --
+# the FUSE project does; TJLFEP's own project does not. Run via batch_smoke_test.sh, or:
+#   julia --project=$FUSE_ROOT [--sysimage=...] smoke_test.jl
 
-using Pkg
-Pkg.activate("..")
+println("image: ", unsafe_string(Base.JLOptions().image_file))
 
 const TJLFEP_ROOT = normpath(@__DIR__, "..", "..")
-const SYSIMAGE = joinpath(TJLFEP_ROOT, "build", "TJLFEP_cpu_sysimage.so")
-if isfile(SYSIMAGE)
-    println("Using sysimage: ", SYSIMAGE)
-else
-    @warn "Sysimage missing; running with standard precompile" SYSIMAGE
-end
 
 using TJLFEP
 using TJLF
 using GACODE
 using IMAS
+using TurbulentTransport  # third TJLFEPIMASExt trigger: without it runTHD(::IMAS.dd) is missing under JIT
 using LinearAlgebra
 
 BLAS.set_num_threads(1)
@@ -50,7 +45,9 @@ println("rho: ", rho)
 inputGACODE = GACODE.load(INPUT)
 dd = IMAS.dd(inputGACODE)
 
-outdir = joinpath(TJLFEP_ROOT, "build", "smoke_out_$(get(ENV, "SLURM_JOB_ID", "local"))")
+# Outputs go to the user's scratch, never TJLFEP_ROOT (which may be the read-only CFS clone).
+outbase = get(ENV, "TJLFEP_SMOKE_OUT", get(ENV, "SCRATCH", tempdir()))
+outdir = joinpath(outbase, "tjlfep_smoke_out_$(get(ENV, "SLURM_JOB_ID", "local"))")
 mkpath(outdir)
 
 t0 = time()

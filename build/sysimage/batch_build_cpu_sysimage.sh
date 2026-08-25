@@ -16,14 +16,17 @@
 #SBATCH --cpus-per-task=128
 
 set -euo pipefail
+# New files/dirs (CFS publishes, depot writes) must stay m3739 group-readable.
+umask 007
 
 module load julia/1.11.7
-export JULIA_DEPOT_PATH="${PSCRATCH}/.julia${JULIA_DEPOT_PATH:+:${JULIA_DEPOT_PATH}}"
+# TJLFEP_DEPOT: base depot for the bake. For group-shareable images this MUST be the CFS
+# depot (paths are baked into the image); defaults to the private scratch depot.
+export JULIA_DEPOT_PATH="${TJLFEP_DEPOT:-${PSCRATCH}/.julia}${JULIA_DEPOT_PATH:+:${JULIA_DEPOT_PATH}}"
 mkdir -p "${JULIA_DEPOT_PATH%%:*}/compiled"
 
-# File-only image: TJLFEP_FILE_ONLY=1 so TJLFEP's baked _FILE_ONLY const is true and the
-# FUSE/IMAS stack is NOT pulled in (the timing scan uses the file/gacode path).
-export TJLFEP_FILE_ONLY=1
+# File-only image by construction: built against the TJLFEP project, whose manifest never
+# resolves the IMAS/GACODE/TurbulentTransport weak deps, so TJLFEPIMASExt stays dormant.
 
 TJLFEP_ROOT="${TJLFEP_ROOT:-/pscratch/sd/t/tneiser/.julia/dev/TJLFEP}"
 cd "${TJLFEP_ROOT}/build"
@@ -55,5 +58,26 @@ julia --startup-file=no --sysimage="${SO}" --project="${TJLFEP_ROOT}" -e '
     println("file-only check: heavy deps loaded = ", isempty(heavy) ? "none" : nameof.(heavy))
     @assert isempty(heavy) "file-only image pulled in FUSE/IMAS"
     println("CPU sysimage OK: TJLF + TJLFEP baked (file-only)")'
+
+# Publish to the shared CFS location with a .sha provenance sidecar (TJLF/TJLFEP only:
+# the CPU image bakes no FUSE/IMAS stack).
+CFS_DIR="${TJLFEP_CFS_DIR:-/global/cfs/cdirs/m3739/TJLFEP}"
+if mkdir -p "${CFS_DIR}" 2>/dev/null; then
+    cp -f "${SO}" "${CFS_DIR}/"
+    chgrp m3739 "${CFS_DIR}/$(basename "${SO}")" 2>/dev/null || true
+    SHA_FILE="${CFS_DIR}/$(basename "${SO}").sha"
+    {
+        for repo in "${TJLFEP_ROOT}" "${TJLFEP_ROOT}/../TJLF"; do
+            printf '%s=%s\n' "$(basename "${repo}")" \
+                "$(git -C "${repo}" describe --always --dirty --tags 2>/dev/null || echo unknown)"
+        done
+        printf 'julia=%s\n' "$(julia --version | awk '{print $NF}')"
+    } > "${SHA_FILE}"
+    chgrp m3739 "${SHA_FILE}" 2>/dev/null || true
+    echo "=== published to ${CFS_DIR}/$(basename "${SO}") ==="
+    cat "${SHA_FILE}"
+else
+    echo "WARNING: could not write ${CFS_DIR}; sysimage left at ${SO} only"
+fi
 
 echo "=== full CPU sysimage build OK: ${SO} ==="

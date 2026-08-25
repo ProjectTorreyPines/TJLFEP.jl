@@ -19,10 +19,14 @@
 #SBATCH --gpus-per-node=1
 
 set -euo pipefail
+# New files/dirs (CFS publishes, depot writes) must stay m3739 group-readable.
+umask 007
 
 module load cudatoolkit/12.9
 module load julia/1.11.7
-export JULIA_DEPOT_PATH="${PSCRATCH}/.julia"
+# TJLFEP_DEPOT: base depot for the bake. For group-shareable images this MUST be the CFS
+# depot (paths are baked into the image); defaults to the private scratch depot.
+export JULIA_DEPOT_PATH="${TJLFEP_DEPOT:-${PSCRATCH}/.julia}"
 mkdir -p "${JULIA_DEPOT_PATH}/compiled"
 
 # JULIA_CUDA_USE_COMPAT=false matches the runtime worker env.
@@ -61,5 +65,26 @@ julia --startup-file=no --sysimage="${SO}" --project="${TJLFEP_ROOT}" -e '
     @assert ext === nothing  "FILE-ONLY build FAILED: TJLFEPIMASExt is loaded (IMAS/GACODE/TurbulentTransport got baked)"
     @assert !haskey(Base.loaded_modules, fuse)  "FILE-ONLY build FAILED: FUSE is baked into image"
     println("file-only image OK: TJLFEPIMASExt dormant, FUSE not baked, runTHD methods=", length(methods(TJLFEP.runTHD)))'
+
+# Publish to the shared CFS location with a .sha provenance sidecar (TJLF/TJLFEP only:
+# the file-only image bakes no FUSE/IMAS stack).
+CFS_DIR="${TJLFEP_CFS_DIR:-/global/cfs/cdirs/m3739/TJLFEP}"
+if mkdir -p "${CFS_DIR}" 2>/dev/null; then
+    cp -f "${SO}" "${CFS_DIR}/"
+    chgrp m3739 "${CFS_DIR}/$(basename "${SO}")" 2>/dev/null || true
+    SHA_FILE="${CFS_DIR}/$(basename "${SO}").sha"
+    {
+        for repo in "${TJLFEP_ROOT}" "${TJLFEP_ROOT}/../TJLF"; do
+            printf '%s=%s\n' "$(basename "${repo}")" \
+                "$(git -C "${repo}" describe --always --dirty --tags 2>/dev/null || echo unknown)"
+        done
+        printf 'julia=%s\n' "$(julia --version | awk '{print $NF}')"
+    } > "${SHA_FILE}"
+    chgrp m3739 "${SHA_FILE}" 2>/dev/null || true
+    echo "=== published to ${CFS_DIR}/$(basename "${SO}") ==="
+    cat "${SHA_FILE}"
+else
+    echo "WARNING: could not write ${CFS_DIR}; sysimage left at ${SO} only"
+fi
 
 echo "=== FILE-ONLY GPU sysimage build OK: ${SO} ==="

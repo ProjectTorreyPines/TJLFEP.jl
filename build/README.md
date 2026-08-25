@@ -201,33 +201,52 @@ manifest resolves a different `OpenSSL_jll` version they fetch a *different*
 artifact and the baked one is still missing. (You cannot embed artifacts into the
 `.so`; `PackageCompiler.create_sysimage` resolves them from the depot at runtime.)
 
-For turnkey sharing on Perlmutter there is a **companion depot** published next to
-the images on CFS, containing every artifact the images need (group `m3739`,
-group-readable):
+Artifacts are only half the story, though: the image (and Julia itself, for JIT
+fallback and extension loading) also re-reads **package sources** — every JLL's
+`Artifacts.toml` lives in the package's source dir, whose absolute path is baked
+at build time. An image baked from a private scratch depot therefore fails for
+everyone else no matter how they stack depots. The fix is a fully **public build
+tree on CFS** — sources, projects, and depot all at m3739-readable paths — and
+baking the images *from those paths*:
 
-- Images: `/global/cfs/cdirs/m3739/TJLFEP/TJLFEP_gpu_sysimage.so` (+ generic / CPU)
-- **Companion depot: `/global/cfs/cdirs/m3739/TJLFEP/depot`**
+- Images: `/global/cfs/cdirs/m3739/TJLFEP/TJLFEP_gpu_generic_sysimage.so`
+  (+ file-only GPU / CPU), with `.sha` provenance sidecars
+- Staged sources: `/global/cfs/cdirs/m3739/TJLFEP/src/{TJLFEP,TJLF,FUSE,IMASdd,
+  IMASggd,ALPHA,TurbulentTransport,CHEASE,TroyonBetaNN}` (see `src/BUILD_STATE`)
+- **Full shared depot** (packages + artifacts + registries + compiled):
+  `/global/cfs/cdirs/m3739/TJLFEP/depot`
 
-Any `m3739` member loads the image with no `instantiate` and no downloads by
-**appending** the companion depot to their own depot:
+Any `m3739` member runs with:
 
 ```bash
-module load julia/1.11.7
-# own (writable) depot FIRST, then the shared read-only artifact depot:
-export JULIA_DEPOT_PATH="$HOME/.julia:/global/cfs/cdirs/m3739/TJLFEP/depot${JULIA_DEPOT_PATH:+:$JULIA_DEPOT_PATH}"
+module load cudatoolkit/12.9 julia/1.11.7
+# own (writable) depot FIRST, then the shared read-only depot:
+export JULIA_DEPOT_PATH="$SCRATCH/.julia:/global/cfs/cdirs/m3739/TJLFEP/depot"
+export JULIA_CUDA_USE_COMPAT=false
 
+# generic image / FUSE dd path (GACODE/IMAS/TurbulentTransport are TJLFEP weak
+# deps -- only the staged FUSE project resolves them, incl. the patched
+# IMASdd/IMASggd, so use it as the project in both sysimage and JIT mode):
 julia --startup-file=no \
-  --project=/path/to/their/TJLFEP \
-  --sysimage=/global/cfs/cdirs/m3739/TJLFEP/TJLFEP_gpu_sysimage.so \
-  -e 'using TJLF, TJLFEP; println("OK")'
+  --project=/global/cfs/cdirs/m3739/TJLFEP/src/FUSE \
+  --sysimage=/global/cfs/cdirs/m3739/TJLFEP/TJLFEP_gpu_generic_sysimage.so \
+  -e 'using TJLFEP, TurbulentTransport; println("OK")'
 ```
 
-> **Do not `export JULIA_DEPOT_PATH=$PSCRATCH/.julia` (bare).** When
-> `JULIA_DEPOT_PATH` is unset (the common case), Julia defaults to `~/.julia`;
-> overwriting it with a single scratch path makes Julia look **only** there and
-> drop the user's home depot (and any shared NERSC depot). Always keep
-> `$HOME/.julia` first and *append* extra depots, as above. To refresh the
-> companion depot after rebuilding an image, rsync the builder's
-> `~/.julia/artifacts/` (or `$PSCRATCH/.julia/artifacts/`) into
-> `/global/cfs/cdirs/m3739/TJLFEP/depot/artifacts/`, then
-> `chgrp -R m3739` + `chmod -R g+rX` it.
+or simply `sbatch /global/cfs/cdirs/m3739/TJLFEP/src/TJLFEP/build/run/batch_smoke_test.sh`.
+
+> Keep your own writable depot **first** in `JULIA_DEPOT_PATH` (precompile caches,
+> logs, and scratchspaces are written to the first entry) and treat the CFS
+> project/depot as read-only: do not run `Pkg.update`/`resolve`/`instantiate`
+> against `src/FUSE` — it would try to rewrite the shared manifest.
+
+**Maintainer: refreshing the shared tree + images.** Run
+`bash build/sysimage/publish_build_tree.sh` (login node) to stage/refresh the 9
+dev repos and rewrite the FUSE manifest's absolute path deps to relative sibling
+paths; instantiate + precompile the staged FUSE and TJLFEP projects with
+`JULIA_DEPOT_PATH` set to **only** the CFS depot; then submit the three build
+scripts with `TJLFEP_ROOT`/`FUSE_ROOT`/`TJLFEP_DEPOT` pointing at the CFS tree
+(they publish the `.so` + `.sha` automatically). Never `rsync -a`/`cp -a` into
+the share — preserving the maintainer's primary group is what once made
+`depot/artifacts` unreadable to the group; `publish_build_tree.sh` runs rsync
+without `-g`/`-o` under setgid dirs and verifies `! -group m3739` is empty.

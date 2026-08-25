@@ -18,17 +18,23 @@
 #SBATCH --gpus-per-node=1
 
 set -euo pipefail
+# New files/dirs (CFS publishes, depot writes) must stay m3739 group-readable.
+umask 007
 
 module load cudatoolkit/12.9
 module load julia/1.11.7
+# TJLFEP_DEPOT: base depot for the bake. For group-shareable images this MUST be the CFS
+# depot (paths are baked into the image); defaults to the private scratch depot for
+# personal builds.
 # TJLFEP_BAKE_DEPOT: optional isolated primary depot for the bake (stacked in front of
 # the shared depot, which stays read-only for packages/artifacts). Avoids cross-flavor
 # precompile-cache collisions (pkgimages=no emit vs pkgimages=true shared caches, or two
 # projects resolving different versions of the same package into one compiled/ dir).
+DEPOT_BASE="${TJLFEP_DEPOT:-${PSCRATCH}/.julia}"
 if [[ -n "${TJLFEP_BAKE_DEPOT:-}" ]]; then
-    export JULIA_DEPOT_PATH="${TJLFEP_BAKE_DEPOT}:${PSCRATCH}/.julia"
+    export JULIA_DEPOT_PATH="${TJLFEP_BAKE_DEPOT}:${DEPOT_BASE}"
 else
-    export JULIA_DEPOT_PATH="${PSCRATCH}/.julia"
+    export JULIA_DEPOT_PATH="${DEPOT_BASE}"
 fi
 mkdir -p "${JULIA_DEPOT_PATH%%:*}/compiled"
 
@@ -53,9 +59,10 @@ nvidia-smi -L 2>/dev/null | head -1 || true
 echo "TJLF: $(git -C "${TJLFEP_ROOT}/../TJLF" rev-parse --abbrev-ref HEAD 2>/dev/null) $(git -C "${TJLFEP_ROOT}/../TJLF" log -1 --oneline 2>/dev/null)"
 echo "TJLFEP: $(git -C "${TJLFEP_ROOT}" rev-parse --abbrev-ref HEAD 2>/dev/null) $(git -C "${TJLFEP_ROOT}" log -1 --oneline 2>/dev/null)"
 
-# Instantiate + precompile dependencies (FUSE/IMAS/CUDA/TurbulentTransport/...). With the
-# extension model there is no _FILE_ONLY const and no ENV-driven cache footgun, so no forced
-# recompile is needed: precompiling the project builds TJLFEPIMASExt (weak deps in manifest).
+# Instantiate + precompile dependencies (FUSE/IMAS/CUDA/TurbulentTransport/...). The weak
+# deps resolve from the FUSE project (not TJLFEP's own manifest); loading them there builds
+# TJLFEPIMASExt. No forced recompile needed with the extension model.
+julia --project="${FUSE_ROOT}" -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
 julia --project="${TJLFEP_ROOT}" -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
 
 julia --project="${TJLFEP_ROOT}" -t "${SLURM_CPUS_PER_TASK:-32}" sysimage/build_gpu_sysimage_generic.jl
@@ -79,18 +86,26 @@ julia --startup-file=no --sysimage="${SO}" --project="${TJLFEP_ROOT}" -e '
     @assert length(methods(TJLFEP.runTHD)) >= 2  "GENERIC build FAILED: runTHD(::IMAS.dd) method missing (actor path not compiled in)"
     println("generic image OK: TJLFEPIMASExt loaded, FUSE baked, runTHD methods=", length(methods(TJLFEP.runTHD)))'
 
-# Publish to the shared CFS location (the default run_tjlfep sysimage) with a .sha sidecar
-# recording the TJLFEP + TJLF git HEADs. run_tjlfep's staleness guard (_tjlfep_sysimage_ok)
-# compares this sidecar to the live source SHAs to decide reuse vs rebuild.
-CFS_DIR="/global/cfs/cdirs/m3739/TJLFEP"
+# Publish to the shared CFS location with a .sha sidecar recording per-repo
+# `git describe --always --dirty` provenance + the julia version the image requires.
+CFS_DIR="${TJLFEP_CFS_DIR:-/global/cfs/cdirs/m3739/TJLFEP}"
 if mkdir -p "${CFS_DIR}" 2>/dev/null; then
     cp -f "${SO}" "${CFS_DIR}/"
-    TJLFEP_SHA="$(git -C "${TJLFEP_ROOT}" rev-parse HEAD 2>/dev/null || echo "")"
-    TJLF_SHA="$(git -C "${TJLFEP_ROOT}/../TJLF" rev-parse HEAD 2>/dev/null || echo "")"
-    printf 'TJLFEP=%s\nTJLF=%s\n' "${TJLFEP_SHA}" "${TJLF_SHA}" > "${CFS_DIR}/$(basename "${SO}").sha"
-    echo "=== published to ${CFS_DIR}/$(basename "${SO}") (+ .sha: TJLFEP=${TJLFEP_SHA} TJLF=${TJLF_SHA}) ==="
+    chgrp m3739 "${CFS_DIR}/$(basename "${SO}")" 2>/dev/null || true
+    SHA_FILE="${CFS_DIR}/$(basename "${SO}").sha"
+    {
+        for repo in "${TJLFEP_ROOT}" "${TJLFEP_ROOT}/../TJLF" "${FUSE_ROOT}" \
+                    "${FUSE_ROOT}/../IMASdd" "${FUSE_ROOT}/../IMASggd"; do
+            printf '%s=%s\n' "$(basename "${repo}")" \
+                "$(git -C "${repo}" describe --always --dirty --tags 2>/dev/null || echo unknown)"
+        done
+        printf 'julia=%s\n' "$(julia --version | awk '{print $NF}')"
+    } > "${SHA_FILE}"
+    chgrp m3739 "${SHA_FILE}" 2>/dev/null || true
+    echo "=== published to ${CFS_DIR}/$(basename "${SO}") ==="
+    cat "${SHA_FILE}"
 else
-    echo "WARNING: could not write ${CFS_DIR}; sysimage left at ${SO} only (run_tjlfep will JIT-fallback)"
+    echo "WARNING: could not write ${CFS_DIR}; sysimage left at ${SO} only"
 fi
 
 echo "=== GENERIC GPU sysimage build OK: ${SO} ==="

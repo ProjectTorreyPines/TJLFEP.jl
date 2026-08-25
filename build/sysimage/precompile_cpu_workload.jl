@@ -8,7 +8,6 @@
 # compute kernel is what dominates per-radius JIT, so tracing it here removes the same cold
 # compilation every distributed CPU worker would otherwise pay.
 
-ENV["TJLFEP_FILE_ONLY"] = "1"
 using Pkg
 Pkg.activate(normpath(@__DIR__, "..", ".."))
 

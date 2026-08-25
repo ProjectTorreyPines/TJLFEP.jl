@@ -1,13 +1,13 @@
 # Build the full CPU sysimage: TJLF + TJLFEP (file-only), with the CPU eigensolve path
 # precompiled via precompile_cpu_workload.jl. This bakes in the per-radius JIT that cold
 # distributed CPU workers otherwise pay on every spawn. CUDA and the FUSE/IMAS stack are
-# excluded (TJLFEP_FILE_ONLY=1 must be set when TJLFEP is precompiled; the batch script does).
+# excluded by construction: the TJLFEP project manifest never resolves the IMAS/GACODE/
+# TurbulentTransport weak deps, so TJLFEPIMASExt stays dormant.
 #
 # CPU analogue of build_gpu_sysimage_generic.jl, baking TJLF + TJLFEP for the file-based path. This
 # DOES bake TJLF (it was previously left out so TJLF source could be iterated during
 # development without rebuilding the image). Run on a CPU node.
 
-ENV["TJLFEP_FILE_ONLY"] = "1"
 using Pkg
 Pkg.activate(normpath(@__DIR__, "..", ".."))
 Pkg.instantiate()
