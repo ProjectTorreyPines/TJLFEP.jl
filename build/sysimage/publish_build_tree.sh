@@ -33,8 +33,9 @@ stage() {
     echo "--- staging ${name} from ${from}/${name}"
     rsync -rlpt --delete \
         --chmod=Dg+s,g-w,g+rX,o-rwx \
-        --exclude='*.so' --exclude='*.out' --exclude='*.err' \
+        --exclude='*.so' --exclude='*.so.bak' --exclude='*.out' --exclude='*.err' \
         --exclude='smoke_out_*/' --exclude='tjlfep_smoke_out_*/' --exclude='attic/' \
+        --exclude='build/ad/' --exclude='ucp_fileInput_*/' \
         --exclude='.git/objects/pack/tmp_*' \
         "${from}/${name}/" "${SRC}/${name}/"
 }
