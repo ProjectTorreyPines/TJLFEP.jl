@@ -25,16 +25,38 @@ cpu_target = ENV["JULIA_CPU_TARGET"]
 sysimage_path = get(ENV, "SYSIMAGE_PATH", "/out/sys_tjlfep_gpu.so")
 mkpath(dirname(sysimage_path))
 
+# Two modes:
+#   - default: run the GPU workload under --trace-compile as part of the bake
+#     (single job on a GPU node — the Perlmutter flow)
+#   - PRECOMPILE_STATEMENTS_FILE=...: reuse a statements file traced earlier on
+#     a GPU node and compile WITHOUT a GPU (replaying precompile statements is
+#     type-level only). This splits the bake into a short GPU trace job and a
+#     CPU-partition compile job — essential on Defiant where GPU nodes are
+#     scarce (see defiant_*.sbatch).
+stmts = get(ENV, "PRECOMPILE_STATEMENTS_FILE", "")
+
 println("### Baking GPU sysimage -> $sysimage_path")
 println("    cpu_target: $cpu_target")
+println("    precompile source: ", isempty(stmts) ? "execution file (GPU workload)" : "statements file $stmts")
 
-create_sysimage(
-    [:CUDA, :TJLF, :TJLFEP];
-    sysimage_path,
-    precompile_execution_file = joinpath(@__DIR__, "precompile_gpu_workload_container.jl"),
-    project = "/opt/tjlfep",
-    cpu_target,
-)
+if isempty(stmts)
+    create_sysimage(
+        [:CUDA, :TJLF, :TJLFEP];
+        sysimage_path,
+        precompile_execution_file = joinpath(@__DIR__, "precompile_gpu_workload_container.jl"),
+        project = "/opt/tjlfep",
+        cpu_target,
+    )
+else
+    @assert isfile(stmts) "missing statements file $stmts"
+    create_sysimage(
+        [:CUDA, :TJLF, :TJLFEP];
+        sysimage_path,
+        precompile_statements_file = stmts,
+        project = "/opt/tjlfep",
+        cpu_target,
+    )
+end
 
 println("### GPU sysimage bake complete: ", sysimage_path,
         " (", round(filesize(sysimage_path) / 2^30; digits=2), " GiB)")
