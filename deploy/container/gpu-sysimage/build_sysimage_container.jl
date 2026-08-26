@@ -1,0 +1,40 @@
+# Build the GPU-traced TJLFEP sysimage INSIDE the container, on a GPU node.
+#
+# Run via batch_bake_gpu_sysimage.sh — never in CI: the precompile workload
+# executes real GPU solves, so it needs a functional A100 behind
+# `podman-hpc run --gpu`. The depot paths baked into the .so match the final
+# -gpu image because this runs in the very image the .so is layered onto
+# (Containerfile.gpu); the container's writable overlay absorbs the temp
+# objects and only $SYSIMAGE_PATH (a bind mount) persists.
+#
+# Invoked with plain `julia` (NOT the tjlfep launcher, which unsets
+# JULIA_CPU_TARGET for JIT use — here we need the image's multi-target value).
+
+import Pkg
+Pkg.activate("/opt/tjlfep")
+using PackageCompiler
+
+# The image bakes a multi-target JULIA_CPU_TARGET (znver3/znver4/
+# sapphirerapids/generic) so one .so serves Perlmutter and Defiant-era hosts.
+# Do NOT fall back to PackageCompiler.default_app_cpu_target() — that traces
+# the build host only (Milan), which is exactly the portability bug the
+# in-repo fileonly builder has.
+@assert haskey(ENV, "JULIA_CPU_TARGET") "JULIA_CPU_TARGET must be set (baked into the image ENV)"
+cpu_target = ENV["JULIA_CPU_TARGET"]
+
+sysimage_path = get(ENV, "SYSIMAGE_PATH", "/out/sys_tjlfep_gpu.so")
+mkpath(dirname(sysimage_path))
+
+println("### Baking GPU sysimage -> $sysimage_path")
+println("    cpu_target: $cpu_target")
+
+create_sysimage(
+    [:CUDA, :TJLF, :TJLFEP];
+    sysimage_path,
+    precompile_execution_file = joinpath(@__DIR__, "precompile_gpu_workload_container.jl"),
+    project = "/opt/tjlfep",
+    cpu_target,
+)
+
+println("### GPU sysimage bake complete: ", sysimage_path,
+        " (", round(filesize(sysimage_path) / 2^30; digits=2), " GiB)")
