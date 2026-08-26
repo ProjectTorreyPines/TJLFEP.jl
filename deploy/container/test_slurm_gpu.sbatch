@@ -17,6 +17,14 @@
 #
 #   TJLFEP_ENVIRONMENT=v2.0.14 sbatch --export=ALL deploy/container/test_slurm_gpu.sbatch
 #
+# TJLFEP_ENVIRONMENT expects the localhost/tjlfep:<tag> name that build.sh and the
+# NERSC installer produce. A plain `podman-hpc pull ghcr.io/...` keeps the ghcr name
+# instead — pass it in full via TJLFEP_IMAGE:
+#
+#   TJLFEP_IMAGE=ghcr.io/projecttorreypines/tjlfep:v2.0.14-gpu sbatch --export=ALL ...
+#
+# Either way the image must be MIGRATED (podman-hpc migrate <image>) under exactly that
+# name, or compute nodes won't see it and will try to pull from a bogus registry.
 # Works for both the plain (JIT) and -gpu (sysimage) tags. Optional:
 # SQUASH_DIR=... to test a shared image store.
 #
@@ -34,7 +42,7 @@
 
 set -euo pipefail
 
-version="${TJLFEP_ENVIRONMENT:?set TJLFEP_ENVIRONMENT (e.g. v2.0.14 or v2.0.14-gpu)}"
+image="${TJLFEP_IMAGE:-localhost/tjlfep:${TJLFEP_ENVIRONMENT:?set TJLFEP_ENVIRONMENT (e.g. v2.0.14 or v2.0.14-gpu) or a full TJLFEP_IMAGE}}"
 
 podman=(podman-hpc)
 [[ -n "${SQUASH_DIR:-}" ]] && podman=(podman-hpc --squash-dir "$SQUASH_DIR")
@@ -44,7 +52,7 @@ nvidia-smi -L
 
 "${podman[@]}" run --rm --gpu --network none \
     -e JULIA_NUM_THREADS="$SLURM_CPUS_PER_TASK" \
-    "localhost/tjlfep:$version" tjlfep -e '
+    "$image" tjlfep -e '
         println("sysimage: ", unsafe_string(Base.JLOptions().image_file))
         @time import TJLFEP
         import CUDA
