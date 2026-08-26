@@ -1,0 +1,133 @@
+# TJLFEP in a container — standalone file-based runs (input.TGLFEP / input.gacode)
+# with CPU + GPU capability from a single image.
+#
+# Targets: NERSC Perlmutter A100 (podman-hpc, `--gpu`) and prospectively
+# ORNL Defiant H100/H200 (Apptainer, `--nv`). TJLFEP has no MPI dependency —
+# parallelism is threads + Distributed + CUDA MPS — so only host driver
+# injection is needed at runtime; CUDA.functional()==false degrades gracefully
+# to the CPU path, letting one image serve both.
+#
+# Build context is this directory:
+#
+#   podman-hpc build -t tjlfep:<version> -f Containerfile .
+#
+# See build.sh for the full build + migrate flow, and the adjacent
+# install_tjlfep_container.jl for the package install details.
+#
+# Adapted from FUSE/deploy/perlmutter-container/Containerfile (CPU-only, with
+# Jupyter); deltas here: CUDA runtime pin (build hosts have no GPU), two
+# variants (lean | imas), no sysimage in CI builds (a GPU-traced sysimage is
+# layered on later by gpu-sysimage/ — bakeable only on a GPU node), no Jupyter.
+
+# Fully-qualified base image: on Perlmutter the default registries.conf resolves
+# bare names against registry.suse.com, so we pin Docker Hub explicitly.
+FROM docker.io/library/julia:1.11.7
+
+# CPU target(s) for pkgimages (and for the sysimage baked later in this same
+# image by gpu-sysimage/). znver3 = Perlmutter Milan; znver4 + sapphirerapids
+# cover likely Defiant-era hosts; generic falls back everywhere else.
+ARG JULIA_CPU_TARGET="generic;znver3,-xsaveopt,-rdrnd,clone_all;znver4,-xsaveopt,-rdrnd,clone_all;sapphirerapids,-xsaveopt,-rdrnd,clone_all"
+
+# lean: TJLFEP + TJLF + CUDA (file-based workflows only)
+# imas: + IMAS/GACODE/TurbulentTransport (enables the TJLFEPIMASExt extension)
+ARG TJLFEP_VARIANT="lean"
+
+# --- system dependencies -----------------------------------------------------
+# git: Pkg clones the FuseRegistry packages via CLI git. gcc stays even though
+# CI builds no sysimage: the GPU sysimage bake runs PackageCompiler INSIDE this
+# image later on a Perlmutter A100 node (gpu-sysimage/).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        git \
+        build-essential \
+        gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# The FuseRegistry stores package repos as git@github.com: (SSH) URLs, which
+# require SSH keys. All ProjectTorreyPines packages are public, so rewrite SSH
+# GitHub URLs to anonymous HTTPS so the build needs no credentials. Written to
+# the system gitconfig (read regardless of $HOME) as a backstop; the install
+# script also rewrites the registry files directly.
+RUN git config --system url."https://github.com/".insteadOf "git@github.com:" \
+    && git config --system url."https://github.com/".insteadOf "ssh://git@github.com/" \
+    && git config --global url."https://github.com/".insteadOf "git@github.com:" \
+    && git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+
+# --- build-time Julia configuration ------------------------------------------
+# JULIA_NUM_THREADS=1 keeps the (later, in-image) PackageCompiler bake happy.
+# JULIA_CUDA_USE_COMPAT=false: the forward-compat libcuda shipped with the CUDA
+# runtime artifact must never shadow the host driver injected by
+# `podman-hpc run --gpu` / `apptainer --nv` (matches all Perlmutter scripts).
+ENV TJLFEP_INSTALL_DIR=/opt/tjlfep \
+    TJLFEP_VARIANT="${TJLFEP_VARIANT}" \
+    JULIA_DEPOT_PATH=/opt/tjlfep/.julia \
+    JULIA_PKG_USE_CLI_GIT=1 \
+    JULIA_CC="gcc -O3" \
+    JULIA_NUM_THREADS=1 \
+    JULIA_CUDA_USE_COMPAT=false \
+    JULIA_CPU_TARGET="${JULIA_CPU_TARGET}"
+
+# Build the REPL stdlib cache up front, time-boxed and retried: with a custom
+# JULIA_CPU_TARGET the shipped cache is invalid, and REPL's precompile drives a
+# scripted pseudo-terminal session that can deadlock forever on a missed prompt
+# under podman's no-TTY environment (REPL/src/precompile.jl has no timeout).
+# A failed warm-up is harmless. Kept BEFORE the COPY so install-script edits
+# do not invalidate this (script-independent) layer.
+RUN timeout 600 julia -e 'import REPL' || timeout 600 julia -e 'import REPL' || true
+
+WORKDIR /opt/build
+COPY install_tjlfep_container.jl /opt/build/install_tjlfep_container.jl
+
+# Bust the install layer's cache per TJLFEP version: layer caching is
+# registry-blind, so without this a same-node rebuild for a NEW release would
+# cache-hit the old install and silently bake the previous TJLFEP version.
+# Same-version rebuilds still reuse the cache.
+ARG TJLFEP_VERSION=""
+ENV TJLFEP_BUILD_VERSION="${TJLFEP_VERSION}"
+
+# Installs TJLFEP + deps into $TJLFEP_INSTALL_DIR with the CUDA 12.9 runtime
+# artifact baked in (pinned via Preferences before any CUDA package lands —
+# build hosts have no GPU to autodetect against). No sysimage here.
+RUN julia /opt/build/install_tjlfep_container.jl
+
+# --- runtime configuration ---------------------------------------------------
+# At runtime the project + depot point at the baked install. Threads are left
+# unset so users choose (e.g. JULIA_NUM_THREADS=8) when they run the image.
+ENV JULIA_PROJECT=/opt/tjlfep \
+    JULIA_DEPOT_PATH=/opt/tjlfep/.julia \
+    JULIA_CPU_TARGET="${JULIA_CPU_TARGET}"
+
+# `tjlfep` launches Julia against the baked project. When the image runs fully
+# read-only (e.g. an Apptainer SIF — unlike podman-hpc there is no writable
+# overlay), Julia must get a writable first depot or package init crashes
+# writing logs/scratch (Scratch.jl via GPUCompiler). Prepend one only when the
+# current first depot is not writable. If a GPU-traced sysimage was layered in
+# (the -gpu tags), use it; otherwise plain julia on pkgimages, letting the JIT
+# target the native CPU instead of the generic build-time target.
+# File-only vs IMAS mode needs no flag: TJLFEPIMASExt loads automatically iff
+# IMAS/GACODE/TurbulentTransport are in the project (the imas variant).
+RUN printf '%s\n' \
+    '#!/bin/bash' \
+    'if [ ! -w "${JULIA_DEPOT_PATH%%:*}" ]; then' \
+    '    export JULIA_DEPOT_PATH="$HOME/.julia_tjlfep_container:$JULIA_DEPOT_PATH"' \
+    'fi' \
+    'if [ -f /opt/tjlfep/sys_tjlfep_gpu.so ]; then' \
+    '    exec julia --sysimage=/opt/tjlfep/sys_tjlfep_gpu.so "$@"' \
+    'fi' \
+    'unset JULIA_CPU_TARGET' \
+    'exec julia "$@"' \
+    > /usr/local/bin/tjlfep \
+    && chmod 0555 /usr/local/bin/tjlfep
+
+# Registries are cloned 0700; without world-read every in-container Pkg
+# operation fails for non-root users.
+RUN chmod -R a+rX /opt/tjlfep/.julia/registries
+
+# Links the GHCR package to this repository (kept last: label-only changes
+# then rebuild from cache in seconds).
+LABEL org.opencontainers.image.source="https://github.com/ProjectTorreyPines/TJLF-EP.jl" \
+      org.opencontainers.image.description="TJLFEP (kinetic-EP critical-gradient model) with TJLF and CUDA, standalone file-based workflows, CPU+GPU"
+
+WORKDIR /root
+CMD ["tjlfep"]
