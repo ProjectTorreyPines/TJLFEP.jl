@@ -5,6 +5,10 @@
 #
 #   cd build && sbatch sysimage/batch_build_gpu_sysimage_generic.sh
 #
+# Every package resolves from FuseRegistry at released versions (setup_registry_env.jl),
+# so ANY user can run this from their own TJLFEP checkout — no maintainer dev tree.
+# Version overrides: TJLFEP_BUILD_VERSION (default: newest registered).
+#
 #SBATCH -A m3739_g
 #SBATCH -q regular
 #SBATCH -N 1
@@ -38,36 +42,33 @@ else
 fi
 mkdir -p "${JULIA_DEPOT_PATH%%:*}/compiled"
 
-# GENERIC image: IMAS/GACODE/TurbulentTransport are weak deps of TJLFEP and load the
-# TJLFEPIMASExt extension (the dd/FUSE actor path) automatically when present. The build
-# project (TJLFEP_ROOT) precompiles the ext because the weak deps are in its manifest, and
-# the precompile_execution file `using`s FUSE -> the ext + FUSE are baked into the image.
 # JULIA_CUDA_USE_COMPAT=false matches the runtime env.
 export JULIA_CUDA_USE_COMPAT=false
 
-TJLFEP_ROOT="${TJLFEP_ROOT:-/pscratch/sd/t/tneiser/.julia/dev/TJLFEP}"
-# The generic image bakes the FUSE/IMAS stack, which can only be resolved from the FUSE
-# project (FUSE is not -- and cannot be -- a TJLFEP dep). build_gpu_sysimage_generic.jl
-# activates FUSE_ROOT and stacks TJLFEP_ROOT for PackageCompiler.
-export FUSE_ROOT="${FUSE_ROOT:-${TJLFEP_ROOT}/../FUSE}"
-cd "${TJLFEP_ROOT}/build"
+# Submitted from the repo's build/ dir (see usage above); the sysimage scripts and the
+# output .so live relative to it. Works from any user's checkout.
+BUILD_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
+cd "${BUILD_DIR}"
+
+# GENERIC image: build against the registry-resolved "full" environment. IMAS/GACODE/
+# TurbulentTransport are direct deps there and load the TJLFEPIMASExt extension (the
+# dd/FUSE actor path) automatically; the precompile_execution file `using`s them -> the
+# ext + FUSE are baked into the image.
+export TJLFEP_BUILD_ENV="${TJLFEP_BUILD_ENV:-${BUILD_DIR}/sysimage/env_full}"
+export TJLFEP_BUILD_VARIANT=full
 
 echo "=== TJLFEP GENERIC GPU sysimage build ==="
 echo "host: $(hostname)  date: $(date)"
 julia --version
 nvidia-smi -L 2>/dev/null | head -1 || true
-echo "TJLF: $(git -C "${TJLFEP_ROOT}/../TJLF" rev-parse --abbrev-ref HEAD 2>/dev/null) $(git -C "${TJLFEP_ROOT}/../TJLF" log -1 --oneline 2>/dev/null)"
-echo "TJLFEP: $(git -C "${TJLFEP_ROOT}" rev-parse --abbrev-ref HEAD 2>/dev/null) $(git -C "${TJLFEP_ROOT}" log -1 --oneline 2>/dev/null)"
 
-# Instantiate + precompile dependencies (FUSE/IMAS/CUDA/TurbulentTransport/...). The weak
-# deps resolve from the FUSE project (not TJLFEP's own manifest); loading them there builds
-# TJLFEPIMASExt. No forced recompile needed with the extension model.
-julia --project="${FUSE_ROOT}" -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
-julia --project="${TJLFEP_ROOT}" -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+# Create/refresh the registry-resolved build environment, then precompile it.
+julia sysimage/setup_registry_env.jl
+julia --project="${TJLFEP_BUILD_ENV}" -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
 
-julia --project="${TJLFEP_ROOT}" -t "${SLURM_CPUS_PER_TASK:-32}" sysimage/build_gpu_sysimage_generic.jl
+julia -t "${SLURM_CPUS_PER_TASK:-32}" sysimage/build_gpu_sysimage_generic.jl
 
-SO="${TJLFEP_ROOT}/build/TJLFEP_gpu_generic_sysimage.so"
+SO="${BUILD_DIR}/TJLFEP_gpu_generic_sysimage.so"
 if [[ ! -f "${SO}" ]]; then
     echo "ERROR: sysimage not found at ${SO}"
     exit 1
@@ -78,7 +79,7 @@ ls -lh "${SO}"
 # extension is loaded (dd/FUSE actor path), FUSE is baked, and runTHD has the ::IMAS.dd
 # method. Fail loudly otherwise so we never ship a silently file-only "generic" image.
 echo "=== verifying generic image ==="
-julia --startup-file=no --sysimage="${SO}" --project="${TJLFEP_ROOT}" -e '
+julia --startup-file=no --sysimage="${SO}" --project="${TJLFEP_BUILD_ENV}" -e '
     fuse = Base.PkgId(Base.UUID("e64856f0-3bb8-4376-b4b7-c03396503992"), "FUSE")
     ext = Base.get_extension(TJLFEP, :TJLFEPIMASExt)
     @assert ext !== nothing  "GENERIC build FAILED: TJLFEPIMASExt not loaded (IMAS/GACODE/TurbulentTransport not baked)"
@@ -86,22 +87,31 @@ julia --startup-file=no --sysimage="${SO}" --project="${TJLFEP_ROOT}" -e '
     @assert length(methods(TJLFEP.runTHD)) >= 2  "GENERIC build FAILED: runTHD(::IMAS.dd) method missing (actor path not compiled in)"
     println("generic image OK: TJLFEPIMASExt loaded, FUSE baked, runTHD methods=", length(methods(TJLFEP.runTHD)))'
 
-# Publish to the shared CFS location with a .sha sidecar recording per-repo
-# `git describe --always --dirty` provenance + the julia version the image requires.
+# Publish to the shared CFS location: the image, a .sha sidecar recording the resolved
+# package versions + julia version, and the build environment itself (Project/Manifest/
+# LocalPreferences) — users run with --project pointed at that published env, which
+# resolves exactly the versions baked into the image.
 CFS_DIR="${TJLFEP_CFS_DIR:-/global/cfs/cdirs/m3739/TJLFEP}"
 if mkdir -p "${CFS_DIR}" 2>/dev/null; then
     cp -f "${SO}" "${CFS_DIR}/"
     chgrp m3739 "${CFS_DIR}/$(basename "${SO}")" 2>/dev/null || true
     SHA_FILE="${CFS_DIR}/$(basename "${SO}").sha"
     {
-        for repo in "${TJLFEP_ROOT}" "${TJLFEP_ROOT}/../TJLF" "${FUSE_ROOT}"; do
-            printf '%s=%s\n' "$(basename "${repo}")" \
-                "$(git -C "${repo}" describe --always --dirty --tags 2>/dev/null || echo unknown)"
-        done
+        julia --project="${TJLFEP_BUILD_ENV}" -e '
+            import Pkg
+            for n in ("TJLFEP", "TJLF", "CUDA", "FUSE", "IMAS", "GACODE", "TurbulentTransport")
+                for (_, info) in Pkg.dependencies()
+                    info.name == n && println(n, "=v", info.version)
+                end
+            end'
         printf 'julia=%s\n' "$(julia --version | awk '{print $NF}')"
     } > "${SHA_FILE}"
     chgrp m3739 "${SHA_FILE}" 2>/dev/null || true
-    echo "=== published to ${CFS_DIR}/$(basename "${SO}") ==="
+    ENV_PUB="${CFS_DIR}/env_full"
+    mkdir -p "${ENV_PUB}"
+    cp -f "${TJLFEP_BUILD_ENV}"/{Project.toml,Manifest.toml,LocalPreferences.toml} "${ENV_PUB}/"
+    chgrp -R m3739 "${ENV_PUB}" 2>/dev/null || true
+    echo "=== published to ${CFS_DIR}/$(basename "${SO}") (runtime project: ${ENV_PUB}) ==="
     cat "${SHA_FILE}"
 else
     echo "WARNING: could not write ${CFS_DIR}; sysimage left at ${SO} only"

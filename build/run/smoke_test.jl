@@ -1,11 +1,10 @@
 # Single-process DIII-D smoke test (no SlurmClusterManager).
 # Needs a project that resolves GACODE/IMAS/TurbulentTransport (TJLFEP weak deps) --
-# the FUSE project does; TJLFEP's own project does not. Run via batch_smoke_test.sh, or:
-#   julia --project=$FUSE_ROOT [--sysimage=...] smoke_test.jl
+# the published "full" build env does; TJLFEP's own project does not. Run via
+# batch_smoke_test.sh, or:
+#   julia --project=/global/cfs/cdirs/m3739/TJLFEP/env_full [--sysimage=...] smoke_test.jl
 
 println("image: ", unsafe_string(Base.JLOptions().image_file))
-
-const TJLFEP_ROOT = normpath(@__DIR__, "..", "..")
 
 using TJLFEP
 using TJLF
@@ -17,7 +16,10 @@ using LinearAlgebra
 BLAS.set_num_threads(1)
 TJLF.pick_device(:auto)
 
-const INPUT = joinpath(TJLFEP_ROOT, "examples", "DIIID_202017C42_500ms_v3.1", "input.gacode")
+# Example inputs come from the installed TJLFEP package (works for registry installs and
+# dev checkouts alike) -- no repo checkout or staged source tree needed at run time.
+const EXDIR = joinpath(pkgdir(TJLFEP), "examples", "DIIID_202017C42_500ms_v3.1")
+const INPUT = joinpath(EXDIR, "input.gacode")
 @assert isfile(INPUT) "Missing test input: $INPUT"
 
 SCAN_N = 1
@@ -45,7 +47,7 @@ println("rho: ", rho)
 inputGACODE = GACODE.load(INPUT)
 dd = IMAS.dd(inputGACODE)
 
-# Outputs go to the user's scratch, never TJLFEP_ROOT (which may be the read-only CFS clone).
+# Outputs go to the user's scratch, never the package dir (which may be a read-only depot).
 outbase = get(ENV, "TJLFEP_SMOKE_OUT", get(ENV, "SCRATCH", tempdir()))
 outdir = joinpath(outbase, "tjlfep_smoke_out_$(get(ENV, "SLURM_JOB_ID", "local"))")
 mkpath(outdir)
@@ -56,7 +58,7 @@ cd(outdir) do
         dd, rho, OptionsDict;
         printout = true,
         saveFiles = false,
-        dir = joinpath(TJLFEP_ROOT, "examples", "DIIID_202017C42_500ms_v3.1", "fileInput"),
+        dir = joinpath(EXDIR, "fileInput"),
         use_gpu = use_gpu,
     )
     println("SFmin = ", SFmin)

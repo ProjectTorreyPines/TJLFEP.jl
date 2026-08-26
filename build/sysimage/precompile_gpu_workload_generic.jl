@@ -4,12 +4,9 @@
 # module context (IMAS/FUSE/TurbulentTransport loaded). The expensive JIT is the GPU per-combo
 # path, which this traces; IMAS/FUSE glue is loaded (baked) but compiles on first actual use.
 
-# Built against the FUSE project (see build_gpu_sysimage_generic.jl). Stack TJLFEP_ROOT on
-# LOAD_PATH so CUDA (a TJLFEP dep, only transitive in FUSE) is loadable for the GPU trace;
-# TJLF/TJLFEP/IMAS/GACODE/TurbulentTransport resolve from the active FUSE project. Do NOT
+# Built against the registry-resolved "full" build env (see build_gpu_sysimage_generic.jl),
+# where CUDA/TJLF/TJLFEP/IMAS/GACODE/TurbulentTransport are all direct deps. Do NOT
 # Pkg.activate a different project here -- that would fight create_sysimage's build project.
-push!(LOAD_PATH, normpath(@__DIR__, "..", ".."))
-
 using CUDA
 using TJLF
 using TJLFEP
@@ -27,9 +24,11 @@ end
 # of constant Main.GACODE" at run_gacode_scan20_mps_task.jl). The `let` keeps the compile trace
 # identical while leaking nothing into Main.
 let
-    ROOT   = normpath(@__DIR__, "..", "..")
-    GACODE = joinpath(ROOT, "examples", "DIIID_202017C42_500ms_v3.1", "input.gacode")
-    TGLFEP = joinpath(ROOT, "examples", "DIIID_202017C42_500ms_v3.1", "input_singleradius_nb6.TGLFEP")   # N_BASIS=6, SCAN_N=1
+    # Example inputs come from the installed TJLFEP package (registry copy), not a repo
+    # checkout -- the traced code and its inputs stay from the same source.
+    EX     = joinpath(pkgdir(TJLFEP), "examples", "DIIID_202017C42_500ms_v3.1")
+    GACODE = joinpath(EX, "input.gacode")
+    TGLFEP = joinpath(EX, "input_singleradius_nb6.TGLFEP")   # N_BASIS=6, SCAN_N=1
 
     @assert isfile(GACODE) "missing $GACODE"
     @assert isfile(TGLFEP) "missing $TGLFEP"

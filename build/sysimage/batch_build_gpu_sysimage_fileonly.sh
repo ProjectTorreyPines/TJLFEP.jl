@@ -6,6 +6,10 @@
 #
 #   cd build && sbatch sysimage/batch_build_gpu_sysimage_fileonly.sh
 #
+# Every package resolves from FuseRegistry at released versions (setup_registry_env.jl),
+# so ANY user can run this from their own TJLFEP checkout — no maintainer dev tree.
+# Version overrides: TJLFEP_BUILD_VERSION (default: newest registered).
+#
 #SBATCH -A m3739_g
 #SBATCH -q regular
 #SBATCH -N 1
@@ -32,23 +36,28 @@ mkdir -p "${JULIA_DEPOT_PATH}/compiled"
 # JULIA_CUDA_USE_COMPAT=false matches the runtime worker env.
 export JULIA_CUDA_USE_COMPAT=false
 
-TJLFEP_ROOT="${TJLFEP_ROOT:-/pscratch/sd/t/tneiser/.julia/dev/TJLFEP}"
-cd "${TJLFEP_ROOT}/build"
+# Submitted from the repo's build/ dir (see usage above); works from any user's checkout.
+BUILD_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
+cd "${BUILD_DIR}"
+
+# FILE-ONLY image: build against the registry-resolved "lean" environment, whose manifest
+# never resolves the IMAS/GACODE/TurbulentTransport weak deps -- the TJLFEPIMASExt
+# extension stays dormant and FUSE/IMAS are never pulled into the image.
+export TJLFEP_BUILD_ENV="${TJLFEP_BUILD_ENV:-${BUILD_DIR}/sysimage/env_lean}"
+export TJLFEP_BUILD_VARIANT=lean
 
 echo "=== TJLFEP FILE-ONLY GPU sysimage build ==="
 echo "host: $(hostname)  date: $(date)"
 julia --version
 nvidia-smi -L 2>/dev/null | head -1 || true
-echo "TJLF: $(git -C "${TJLFEP_ROOT}/../TJLF" rev-parse --abbrev-ref HEAD 2>/dev/null) $(git -C "${TJLFEP_ROOT}/../TJLF" log -1 --oneline 2>/dev/null)"
-echo "TJLFEP: $(git -C "${TJLFEP_ROOT}" rev-parse --abbrev-ref HEAD 2>/dev/null) $(git -C "${TJLFEP_ROOT}" log -1 --oneline 2>/dev/null)"
 
-# Instantiate + precompile the TJLFEP project deps (CUDA/TJLF/...). The extension only builds/
-# loads when IMAS/GACODE/TurbulentTransport are loaded, which the file-only workload never does.
-julia --project="${TJLFEP_ROOT}" -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+# Create/refresh the registry-resolved build environment, then precompile it.
+julia sysimage/setup_registry_env.jl
+julia --project="${TJLFEP_BUILD_ENV}" -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
 
-julia --project="${TJLFEP_ROOT}" -t "${SLURM_CPUS_PER_TASK:-32}" sysimage/build_gpu_sysimage_fileonly.jl
+julia -t "${SLURM_CPUS_PER_TASK:-32}" sysimage/build_gpu_sysimage_fileonly.jl
 
-SO="${TJLFEP_ROOT}/build/TJLFEP_gpu_sysimage.so"
+SO="${BUILD_DIR}/TJLFEP_gpu_sysimage.so"
 if [[ ! -f "${SO}" ]]; then
     echo "ERROR: sysimage not found at ${SO}"
     exit 1
@@ -59,29 +68,37 @@ ls -lh "${SO}"
 # extension is NOT loaded and FUSE is NOT baked. Fail loudly otherwise so we never ship a
 # silently generic image under the file-only name.
 echo "=== verifying file-only image ==="
-julia --startup-file=no --sysimage="${SO}" --project="${TJLFEP_ROOT}" -e '
+julia --startup-file=no --sysimage="${SO}" --project="${TJLFEP_BUILD_ENV}" -e '
     fuse = Base.PkgId(Base.UUID("e64856f0-3bb8-4376-b4b7-c03396503992"), "FUSE")
     ext = Base.get_extension(TJLFEP, :TJLFEPIMASExt)
     @assert ext === nothing  "FILE-ONLY build FAILED: TJLFEPIMASExt is loaded (IMAS/GACODE/TurbulentTransport got baked)"
     @assert !haskey(Base.loaded_modules, fuse)  "FILE-ONLY build FAILED: FUSE is baked into image"
     println("file-only image OK: TJLFEPIMASExt dormant, FUSE not baked, runTHD methods=", length(methods(TJLFEP.runTHD)))'
 
-# Publish to the shared CFS location with a .sha provenance sidecar (TJLF/TJLFEP only:
-# the file-only image bakes no FUSE/IMAS stack).
+# Publish to the shared CFS location: the image, a .sha sidecar with the resolved package
+# versions (TJLF/TJLFEP/CUDA only: no FUSE/IMAS in this image), and the lean build env
+# (users run with --project pointed at the published env).
 CFS_DIR="${TJLFEP_CFS_DIR:-/global/cfs/cdirs/m3739/TJLFEP}"
 if mkdir -p "${CFS_DIR}" 2>/dev/null; then
     cp -f "${SO}" "${CFS_DIR}/"
     chgrp m3739 "${CFS_DIR}/$(basename "${SO}")" 2>/dev/null || true
     SHA_FILE="${CFS_DIR}/$(basename "${SO}").sha"
     {
-        for repo in "${TJLFEP_ROOT}" "${TJLFEP_ROOT}/../TJLF"; do
-            printf '%s=%s\n' "$(basename "${repo}")" \
-                "$(git -C "${repo}" describe --always --dirty --tags 2>/dev/null || echo unknown)"
-        done
+        julia --project="${TJLFEP_BUILD_ENV}" -e '
+            import Pkg
+            for n in ("TJLFEP", "TJLF", "CUDA")
+                for (_, info) in Pkg.dependencies()
+                    info.name == n && println(n, "=v", info.version)
+                end
+            end'
         printf 'julia=%s\n' "$(julia --version | awk '{print $NF}')"
     } > "${SHA_FILE}"
     chgrp m3739 "${SHA_FILE}" 2>/dev/null || true
-    echo "=== published to ${CFS_DIR}/$(basename "${SO}") ==="
+    ENV_PUB="${CFS_DIR}/env_lean"
+    mkdir -p "${ENV_PUB}"
+    cp -f "${TJLFEP_BUILD_ENV}"/{Project.toml,Manifest.toml,LocalPreferences.toml} "${ENV_PUB}/"
+    chgrp -R m3739 "${ENV_PUB}" 2>/dev/null || true
+    echo "=== published to ${CFS_DIR}/$(basename "${SO}") (runtime project: ${ENV_PUB}) ==="
     cat "${SHA_FILE}"
 else
     echo "WARNING: could not write ${CFS_DIR}; sysimage left at ${SO} only"

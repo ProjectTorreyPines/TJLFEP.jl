@@ -205,16 +205,27 @@ Artifacts are only half the story, though: the image (and Julia itself, for JIT
 fallback and extension loading) also re-reads **package sources** — every JLL's
 `Artifacts.toml` lives in the package's source dir, whose absolute path is baked
 at build time. An image baked from a private scratch depot therefore fails for
-everyone else no matter how they stack depots. The fix is a fully **public build
-tree on CFS** — sources, projects, and depot all at m3739-readable paths — and
-baking the images *from those paths*:
+everyone else no matter how they stack depots. The fix is baking *from
+m3739-readable paths*: a shared depot on CFS holding all package sources
+(registry-resolved — see below), plus the published build environments.
 
 - Images: `/global/cfs/cdirs/m3739/TJLFEP/TJLFEP_gpu_generic_sysimage.so`
-  (+ file-only GPU / CPU), with `.sha` provenance sidecars
-- Staged sources: `/global/cfs/cdirs/m3739/TJLFEP/src/{TJLFEP,TJLF,FUSE,IMASdd,
-  IMASggd,ALPHA,TurbulentTransport,CHEASE,TroyonBetaNN}` (see `src/BUILD_STATE`)
+  (+ file-only GPU / CPU), with `.sha` sidecars recording the resolved package
+  versions each image was baked from
+- Published build environments (`Project.toml` + `Manifest.toml` +
+  `LocalPreferences.toml`): `/global/cfs/cdirs/m3739/TJLFEP/env_full` (generic
+  image) and `env_lean` (file-only/CPU images) — these are the runtime
+  `--project`s, resolving exactly the versions baked into the images
 - **Full shared depot** (packages + artifacts + registries + compiled):
   `/global/cfs/cdirs/m3739/TJLFEP/depot`
+
+Since 2026-08-26 the build environments are **registry-resolved**
+(`sysimage/setup_registry_env.jl`): every package comes from FuseRegistry at its
+released version — the same philosophy as the TJLFEP container
+(`deploy/container/`) — so no dev repos are staged and any user can rebuild any
+image from their own TJLFEP checkout. (Previously the images were baked from the
+maintainer's `Pkg.develop` tree, staged to `src/` by the now-retired
+`publish_build_tree.sh`.)
 
 Any `m3739` member runs with:
 
@@ -225,28 +236,28 @@ export JULIA_DEPOT_PATH="$SCRATCH/.julia:/global/cfs/cdirs/m3739/TJLFEP/depot"
 export JULIA_CUDA_USE_COMPAT=false
 
 # generic image / FUSE dd path (GACODE/IMAS/TurbulentTransport are TJLFEP weak
-# deps -- only the staged FUSE project resolves them, incl. the patched
-# IMASdd/IMASggd, so use it as the project in both sysimage and JIT mode):
+# deps -- only the published env_full project resolves them, so use it as the
+# project in both sysimage and JIT mode):
 julia --startup-file=no \
-  --project=/global/cfs/cdirs/m3739/TJLFEP/src/FUSE \
+  --project=/global/cfs/cdirs/m3739/TJLFEP/env_full \
   --sysimage=/global/cfs/cdirs/m3739/TJLFEP/TJLFEP_gpu_generic_sysimage.so \
   -e 'using TJLFEP, TurbulentTransport; println("OK")'
 ```
 
-or simply `sbatch /global/cfs/cdirs/m3739/TJLFEP/src/TJLFEP/build/run/batch_smoke_test.sh`.
+or, from a TJLFEP checkout, `cd build && sbatch run/batch_smoke_test.sh`.
 
 > Keep your own writable depot **first** in `JULIA_DEPOT_PATH` (precompile caches,
 > logs, and scratchspaces are written to the first entry) and treat the CFS
 > project/depot as read-only: do not run `Pkg.update`/`resolve`/`instantiate`
-> against `src/FUSE` — it would try to rewrite the shared manifest.
+> against the published `env_*` projects — it would try to rewrite the shared
+> manifest.
 
-**Maintainer: refreshing the shared tree + images.** Run
-`bash build/sysimage/publish_build_tree.sh` (login node) to stage/refresh the 9
-dev repos and rewrite the FUSE manifest's absolute path deps to relative sibling
-paths; instantiate + precompile the staged FUSE and TJLFEP projects with
-`JULIA_DEPOT_PATH` set to **only** the CFS depot; then submit the three build
-scripts with `TJLFEP_ROOT`/`FUSE_ROOT`/`TJLFEP_DEPOT` pointing at the CFS tree
-(they publish the `.so` + `.sha` automatically). Never `rsync -a`/`cp -a` into
+**Refreshing the shared images.** From a TJLFEP checkout, submit the three build
+scripts (`cd build && sbatch sysimage/batch_build_*.sh`) with `TJLFEP_DEPOT`
+pointing at the CFS depot; each job creates/refreshes its registry-resolved build
+env (`sysimage/setup_registry_env.jl`; pin a version with
+`TJLFEP_BUILD_VERSION`, default is the newest registered) and publishes the
+`.so` + `.sha` + `env_*` project automatically. Never `rsync -a`/`cp -a` into
 the share — preserving the maintainer's primary group is what once made
-`depot/artifacts` unreadable to the group; `publish_build_tree.sh` runs rsync
-without `-g`/`-o` under setgid dirs and verifies `! -group m3739` is empty.
+`depot/artifacts` unreadable to the group; the scripts run under `umask 007`
+with an explicit `chgrp` pass instead.

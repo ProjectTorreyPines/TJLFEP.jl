@@ -6,9 +6,9 @@
 # file-based scan path (run_gacode_scan_task) gets -- a leaner, faster-loading image than the
 # generic one, with the same solver compute paths baked in.
 #
-# Built against the TJLFEP project (see build_gpu_sysimage_fileonly.jl); CUDA/TJLF resolve as
-# direct deps. Do NOT Pkg.activate a different project here -- that would fight
-# create_sysimage's build project.
+# Built against the registry-resolved "lean" build env (see build_gpu_sysimage_fileonly.jl);
+# CUDA/TJLF resolve as direct deps. Do NOT Pkg.activate a different project here -- that
+# would fight create_sysimage's build project.
 using CUDA
 using TJLF
 using TJLFEP
@@ -23,9 +23,11 @@ end
 # NB: keep these as LOCALS inside a `let` (not top-level `const`) -- a baked `const GACODE`
 # in Main would collide with the MPS task script's own `const GACODE = ENV[...]` at runtime.
 let
-    ROOT   = normpath(@__DIR__, "..", "..")
-    GACODE = joinpath(ROOT, "examples", "DIIID_202017C42_500ms_v3.1", "input.gacode")
-    TGLFEP = joinpath(ROOT, "examples", "DIIID_202017C42_500ms_v3.1", "input_singleradius_nb6.TGLFEP")   # N_BASIS=6, SCAN_N=1
+    # Example inputs come from the installed TJLFEP package (registry copy), not a repo
+    # checkout -- the traced code and its inputs stay from the same source.
+    EX     = joinpath(pkgdir(TJLFEP), "examples", "DIIID_202017C42_500ms_v3.1")
+    GACODE = joinpath(EX, "input.gacode")
+    TGLFEP = joinpath(EX, "input_singleradius_nb6.TGLFEP")   # N_BASIS=6, SCAN_N=1
 
     @assert isfile(GACODE) "missing $GACODE"
     @assert isfile(TGLFEP) "missing $TGLFEP"

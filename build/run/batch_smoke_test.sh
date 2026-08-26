@@ -14,21 +14,24 @@ set -euo pipefail
 module load cudatoolkit/12.9
 module load julia/1.11.7
 
-# Shared m3739 tree: staged sources (src/), full depot, and published sysimages.
+# Shared m3739 tree: full depot, published sysimages, and the published build envs.
 CFS_DIR="${TJLFEP_CFS_DIR:-/global/cfs/cdirs/m3739/TJLFEP}"
 
 # Your writable depot MUST come first; the CFS depot provides read-only packages/artifacts.
 export JULIA_DEPOT_PATH="${SCRATCH}/.julia:${CFS_DIR}/depot"
 export JULIA_CUDA_USE_COMPAT=false
 
-TJLFEP_ROOT="${TJLFEP_ROOT:-${CFS_DIR}/src/TJLFEP}"
-# GACODE/IMAS/TurbulentTransport are TJLFEP weak deps; only the FUSE project resolves them
-# (incl. the patched IMASdd/IMASggd), so JIT mode must run under that project.
-SMOKE_PROJECT="${SMOKE_PROJECT:-${CFS_DIR}/src/FUSE}"
+# GACODE/IMAS/TurbulentTransport are TJLFEP weak deps; only the published "full" build env
+# (batch_build_gpu_sysimage_generic.sh publishes it next to the image) resolves them, so
+# JIT mode must run under that project. It also pins exactly the versions the generic
+# sysimage was baked from.
+SMOKE_PROJECT="${SMOKE_PROJECT:-${CFS_DIR}/env_full}"
 # Optional GPU sysimage (build once with batch_build_gpu_sysimage_generic.sh). Missing -> JIT.
 SYSIMAGE="${TJLFEP_GPU_SYSIMAGE:-${CFS_DIR}/TJLFEP_gpu_generic_sysimage.so}"
 
-cd "${TJLFEP_ROOT}/build"
+# Submitted from the repo's build/ dir (cd build && sbatch run/batch_smoke_test.sh);
+# works from any user's checkout.
+cd "${SLURM_SUBMIT_DIR:-$(pwd)}"
 echo "=== TJLFEP smoke test ==="
 echo "host: $(hostname)"
 echo "date: $(date)"

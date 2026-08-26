@@ -1,15 +1,20 @@
 # Build the full CPU sysimage: TJLF + TJLFEP (file-only), with the CPU eigensolve path
 # precompiled via precompile_cpu_workload.jl. This bakes in the per-radius JIT that cold
-# distributed CPU workers otherwise pay on every spawn. CUDA and the FUSE/IMAS stack are
-# excluded by construction: the TJLFEP project manifest never resolves the IMAS/GACODE/
-# TurbulentTransport weak deps, so TJLFEPIMASExt stays dormant.
+# distributed CPU workers otherwise pay on every spawn. The FUSE/IMAS stack is excluded by
+# construction: the lean build project never resolves the IMAS/GACODE/TurbulentTransport
+# weak deps, so TJLFEPIMASExt stays dormant. (CUDA is a hard TJLFEP dep and rides along in
+# the manifest, but degrades gracefully on CPU nodes.)
 #
-# CPU analogue of build_gpu_sysimage_generic.jl, baking TJLF + TJLFEP for the file-based path. This
-# DOES bake TJLF (it was previously left out so TJLF source could be iterated during
-# development without rebuilding the image). Run on a CPU node.
+# Builds against the registry-resolved "lean" environment created by setup_registry_env.jl
+# (TJLFEP_BUILD_ENV): released FuseRegistry versions only, reproducible by any user.
+# Run on a CPU node.
 
 using Pkg
-Pkg.activate(normpath(@__DIR__, "..", ".."))
+
+build_env = get(ENV, "TJLFEP_BUILD_ENV", "")
+@assert !isempty(build_env) "TJLFEP_BUILD_ENV must point at the project made by setup_registry_env.jl (variant: lean)"
+
+Pkg.activate(build_env)
 Pkg.instantiate()
 using PackageCompiler
 
