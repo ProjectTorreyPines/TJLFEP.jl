@@ -1,0 +1,173 @@
+name: container
+
+# Build and publish the TJLFEP container to ghcr.io/projecttorreypines/tjlfep.
+#
+# Two variants build in parallel on GitHub-hosted runners (linux/amd64 only —
+# no sysimage in CI, so plain ubuntu runners suffice; the GPU-traced sysimage
+# tags (:<v>-gpu) are baked manually on a Perlmutter A100 with
+# deploy/container/gpu-sysimage/ and pushed with publish_ghcr.sh):
+#
+#   :<version>        lean — TJLFEP + TJLF + CUDA (file-based workflows)
+#   :<version>-imas   + IMAS/GACODE/TurbulentTransport (TJLFEPIMASExt)
+#
+# :latest / :latest-imas move only on release builds (or dispatch with
+# publish_latest) and never point at a -gpu tag.
+#
+# TJLF-EP.jl publishes no GitHub releases (versions are registered straight to
+# FuseRegistry), so the version job resolves the newest registered version when
+# none is given. The `release` trigger is kept for the day releases exist.
+#
+# NOTE: the FIRST push creates the GHCR package with PRIVATE visibility. An org
+# owner must flip it public once (required for unauthenticated `apptainer pull`
+# on Defiant): https://github.com/orgs/ProjectTorreyPines/packages/container/package/tjlfep
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tjlfep_version:
+        description: "TJLFEP version to build (e.g. v2.0.14); empty = newest in FuseRegistry"
+        required: false
+        default: ""
+      variant:
+        description: "Which variant(s) to build"
+        type: choice
+        options: [both, lean, imas]
+        default: both
+      publish_latest:
+        description: "Also move :latest / :latest-imas to this version"
+        type: boolean
+        default: false
+      run_full_tests:
+        description: "Run the full TJLFEP test suite in the image (slow)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/projecttorreypines/tjlfep
+
+jobs:
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      matrix: ${{ steps.m.outputs.matrix }}
+      latest: ${{ steps.v.outputs.latest }}
+    steps:
+      - id: v
+        run: |
+          v="${{ github.event.release.tag_name }}"
+          [ -z "$v" ] && v="${{ inputs.tjlfep_version }}"
+          if [ -z "$v" ]; then
+            v="v$(curl -sf https://raw.githubusercontent.com/ProjectTorreyPines/FuseRegistry.jl/master/T/TJLFEP/Versions.toml \
+                 | sed -n 's/^\["\(.*\)"\]$/\1/p' | sort -V | tail -1)"
+          fi
+          [ "$v" = "v" ] && { echo "could not resolve a TJLFEP version"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          # releases always move latest; dispatch only when asked
+          latest="${{ inputs.publish_latest }}"
+          [ "${{ github.event_name }}" = "release" ] && latest=true
+          echo "latest=${latest:-false}" >> "$GITHUB_OUTPUT"
+          echo "building TJLFEP $v (latest: ${latest:-false})"
+
+      - id: m
+        run: |
+          variant="${{ inputs.variant }}"
+          [ -z "$variant" ] && variant="both"
+          lean='{"variant":"lean","suffix":""}'
+          imas='{"variant":"imas","suffix":"-imas"}'
+          case "$variant" in
+            lean) include="[$lean]" ;;
+            imas) include="[$imas]" ;;
+            *)    include="[$lean,$imas]" ;;
+          esac
+          echo "matrix={\"include\":$include}" >> "$GITHUB_OUTPUT"
+          echo "building variant(s): $variant"
+
+  build:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.version.outputs.matrix) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      # the ~3 GB CUDA runtime artifact makes even the lean unpacked image
+      # ~8-10 GB, and the runner disk is shared with preinstalled toolchains
+      # we don't need (the imas variant adds the IMAS stack + LFS NN weights)
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+                      /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # heavy: installs the TJLFEP stack, bakes the CUDA 12.9 runtime artifact,
+      # and precompiles everything (pkgimages; no sysimage in CI)
+      - name: Build image
+        run: |
+          docker build \
+            -f deploy/container/Containerfile \
+            --build-arg TJLFEP_VARIANT="${{ matrix.variant }}" \
+            --build-arg TJLFEP_VERSION="${{ needs.version.outputs.version }}" \
+            -t "$IMAGE:${{ needs.version.outputs.version }}${{ matrix.suffix }}" \
+            deploy/container
+
+      - name: Verify the image contains the requested TJLFEP version
+        run: |
+          got="$(docker run --rm "$IMAGE:${{ needs.version.outputs.version }}${{ matrix.suffix }}" \
+                 tjlfep -e 'import TJLFEP; print(pkgversion(TJLFEP))')"
+          echo "image has TJLFEP v$got, requested ${{ needs.version.outputs.version }}"
+          [ "v$got" = "${{ needs.version.outputs.version }}" ]
+
+      # single-radius CPU critical-gradient solve on the packaged DIII-D
+      # example, offline — proves the image is physics-capable + self-contained
+      - name: CPU smoke solve (offline)
+        run: |
+          docker run --rm --network none \
+            "$IMAGE:${{ needs.version.outputs.version }}${{ matrix.suffix }}" tjlfep -e '
+              import TJLFEP
+              ex = joinpath(pkgdir(TJLFEP), "examples", "DIIID_202017C42_500ms_v3.1")
+              TJLFEP.run_gacode_scan_task(
+                  joinpath(ex, "input.gacode"),
+                  joinpath(ex, "input_singleradius_nb6.TGLFEP"),
+                  1; out_dir=mktempdir(), use_gpu=false, printout=true)
+              println("CPU smoke solve OK")'
+
+      - name: Verify TJLFEPIMASExt loads (imas variant)
+        if: matrix.variant == 'imas'
+        run: |
+          docker run --rm "$IMAGE:${{ needs.version.outputs.version }}${{ matrix.suffix }}" tjlfep -e '
+            import TJLFEP, IMAS, GACODE, TurbulentTransport
+            ext = Base.get_extension(TJLFEP, :TJLFEPIMASExt)
+            println("TJLFEPIMASExt: ", ext)
+            ext === nothing && exit(1)'
+
+      - name: Full test suite
+        if: inputs.run_full_tests
+        run: |
+          docker run --rm "$IMAGE:${{ needs.version.outputs.version }}${{ matrix.suffix }}" \
+            tjlfep -e 'import Pkg; Pkg.test("TJLFEP")'
+
+      - name: Push version tag
+        run: docker push "$IMAGE:${{ needs.version.outputs.version }}${{ matrix.suffix }}"
+
+      - name: Push latest tag
+        if: needs.version.outputs.latest == 'true'
+        run: |
+          docker tag "$IMAGE:${{ needs.version.outputs.version }}${{ matrix.suffix }}" \
+                     "$IMAGE:latest${{ matrix.suffix }}"
+          docker push "$IMAGE:latest${{ matrix.suffix }}"
