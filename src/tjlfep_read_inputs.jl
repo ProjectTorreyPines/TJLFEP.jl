@@ -528,10 +528,14 @@ function expro_vectors_from_gacode(
     dlnnidr, dlntidr = expro_log_gradients(ni, Ti, rmin_work)
     dlnnidr .= max.(dlnnidr, 1.0)
 
+    # Match gacode expro_util.f90 exactly: EXPRO_cs = sqrt(k*(1e3*te)/(2*mp))/1e2 [m/s]
+    # with mp the PROTON mass (2*mp = deuteron). The old code used mp_g = 2*1.6726e-24
+    # (already the deuteron mass) inside /(2*mp_g) — an extra 1/sqrt(2) — and then
+    # converted to cm/s (x100), making F_REAL (and all printed kHz) 100/sqrt(2) = 70.7x
+    # too large vs Fortran TGLFEP. Physics was unaffected (F_REAL only scales printouts).
     k_erg = 1.6022e-12
-    mp_g = 2.0 * 1.6726e-24
-    cs_m = sqrt.(k_erg .* (1e3 .* te) ./ (2.0 * mp_g)) ./ 1e2
-    cs = cs_m .* 100.0  # cm/s (matches `readEXPRO` / `F_REAL` convention)
+    mp_g = 1.6726e-24
+    cs = sqrt.(k_erg .* (1e3 .* te) ./ (2.0 * mp_g)) ./ 1e2  # m/s, = EXPRO_cs
 
     return (
         ni=ni,
