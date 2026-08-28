@@ -121,7 +121,9 @@ function _configure_inputTJLF_for_ky!(inputTJLF, inputsEP)
     inputTJLF.NMODES              = inputsEP.NMODES
     inputTJLF.NBASIS_MIN          = inputsEP.N_BASIS
     inputTJLF.NBASIS_MAX          = inputsEP.N_BASIS
-    inputTJLF.NXGRID              = 32
+    # Match TJLFEP_ky (and the Fortran nb48 driver): the quadrature grid must
+    # resolve the highest basis function, nxgrid = max(n_basis, 32).
+    inputTJLF.NXGRID              = max(inputsEP.N_BASIS, 32)
     inputTJLF.WIDTH               = inputsEP.WIDTH_IN
     inputTJLF.FIND_WIDTH          = false
     inputTJLF.USE_AVE_ION_GRID    = false

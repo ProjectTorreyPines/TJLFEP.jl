@@ -46,3 +46,53 @@ function debug_dump_kw_combo(inputsEP, i::Int)
         " kyhat_in=", inputsEP.KYHAT_IN, " width_in=", inputsEP.WIDTH_IN)
     return nothing
 end
+
+"""Per-combo log level from env `TJLFEP_COMBO_LOG` (read at RUNTIME, not baked into the
+precompile cache): 0 = off (default), 1 = one line per (combo, mode) with eigenvalues and
+every reject-filter value, 2 = additionally dump the mapped TJLF inputs per combo."""
+_combo_log_level() = something(tryparse(Int, get(ENV, "TJLFEP_COMBO_LOG", "0")), 0)
+
+"""End of TJLFEP_ky: full per-combo, per-mode record — eigenvalue, keep decision, and the
+raw filter metrics (tearing amplitude, QL ratio, <theta^2>, pinches) that produced it.
+One parseable line per mode, prefixed `[COMBO]`."""
+function debug_dump_combo_full(inputsEP, inputTJLF, g, f, x_tear_test, QL_flux_ratio,
+                               theta_2_moment, DEP, chi_i)
+    lvl = _combo_log_level()
+    lvl >= 1 || return nothing
+    io = IOBuffer()
+    for n in 1:inputTJLF.NMODES
+        print(io, "[COMBO] ir=", inputsEP.IR,
+            " ky^=", inputsEP.KYHAT_IN,
+            " w=", inputsEP.WIDTH_IN,
+            " sf=", inputsEP.FACTOR_IN,
+            " n=", n,
+            " g=", g[n], " f=", f[n],
+            " keep=", Int(inputsEP.LKEEP[n]),
+            " tear=", Int(inputsEP.LTEARING[n]), " x_tear=", x_tear_test[n],
+            " qlr=", Int(inputsEP.L_QL_RATIO[n]), " QLratio=", QL_flux_ratio[n],
+            " th2=", Int(inputsEP.L_THETA_SQ[n]), " theta2=", theta_2_moment[n],
+            " iP=", Int(inputsEP.L_I_PINCH[n]), " eP=", Int(inputsEP.L_E_PINCH[n]),
+            " thP=", Int(inputsEP.L_TH_PINCH[n]), " epP=", Int(inputsEP.L_EP_PINCH[n]),
+            " DEP=", DEP[n], " chi_i=", chi_i[n], "\n")
+    end
+    if lvl >= 2
+        print(io, "[COMBO-IN] ir=", inputsEP.IR,
+            " ky^=", inputsEP.KYHAT_IN, " w=", inputsEP.WIDTH_IN, " sf=", inputsEP.FACTOR_IN,
+            " KY=", inputTJLF.KY, " WIDTH=", inputTJLF.WIDTH,
+            " NBASIS=", inputTJLF.NBASIS_MAX,
+            " AS=", inputTJLF.AS, " TAUS=", inputTJLF.TAUS,
+            " ZS=", inputTJLF.ZS, " MASS=", inputTJLF.MASS,
+            " RLNS=", inputTJLF.RLNS, " RLTS=", inputTJLF.RLTS,
+            " BETAE=", inputTJLF.BETAE, " ZEFF=", inputTJLF.ZEFF,
+            " Q_LOC=", inputTJLF.Q_LOC, " Q_PRIME=", inputTJLF.Q_PRIME_LOC,
+            " P_PRIME=", inputTJLF.P_PRIME_LOC, " RMIN=", inputTJLF.RMIN_LOC,
+            " RMAJ=", inputTJLF.RMAJ_LOC, " KAPPA=", inputTJLF.KAPPA_LOC,
+            " S_KAPPA=", inputTJLF.S_KAPPA_LOC, " DELTA=", inputTJLF.DELTA_LOC,
+            " SHIFT=", inputTJLF.DRMAJDX_LOC,
+            " FREQ_AE_UPPER=", inputsEP.FREQ_AE_UPPER,
+            " GAMMA_THRESH=", inputsEP.GAMMA_THRESH, "\n")
+    end
+    print(stdout, String(take!(io)))
+    flush(stdout)
+    return nothing
+end

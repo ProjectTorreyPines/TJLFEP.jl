@@ -47,7 +47,13 @@ function TJLFEP_ky(inputsEP::Options{T}, inputsPR::profile{T}, str_wf_file::Stri
     inputTJLF.NBASIS_MIN = inputsEP.N_BASIS
     inputTJLF.NBASIS_MAX = inputsEP.N_BASIS
 
-    inputTJLF.NXGRID = 32
+    # Match the Fortran TGLFEP nb48 driver: nxgrid = max(n_basis, 32), so the
+    # Gauss-Hermite grid (nx = 2*nxgrid-1) resolves the highest basis function.
+    # With the old hardcoded 32, NBASIS=48 runs were under-resolved (63 nodes vs
+    # basis products of polynomial order ~94) and lost unstable AE branches.
+    # Env override TJLFEP_NXGRID is a debug knob for quadrature-resolution studies.
+    inputTJLF.NXGRID = something(tryparse(Int, get(ENV, "TJLFEP_NXGRID", "")),
+                                 max(inputsEP.N_BASIS, 32))
 
     inputTJLF.WIDTH = inputsEP.WIDTH_IN
     inputTJLF.FIND_WIDTH = false
@@ -122,6 +128,12 @@ function TJLFEP_ky(inputsEP::Options{T}, inputsPR::profile{T}, str_wf_file::Stri
         if _pb
             Threads.atomic_add!(_PROBE_KY, (time_ns() - _t_ky) / 1e9)
             Threads.atomic_add!(_PROBE_N, 1)
+        end
+        if _combo_log_level() >= 1
+            println("[COMBO] ir=", inputsEP.IR, " ky^=", inputsEP.KYHAT_IN,
+                    " w=", inputsEP.WIDTH_IN, " sf=", inputsEP.FACTOR_IN,
+                    " SINGULAR (treated stable)")
+            flush(stdout)
         end
         return fill(T(0), NM), fill(T(0), NM), inputTJLF, nothing, nothing, fill(T(NaN), NM), fill(T(NaN), NM)
     end
@@ -312,6 +324,9 @@ function TJLFEP_ky(inputsEP::Options{T}, inputsPR::profile{T}, str_wf_file::Stri
         inputsEP.LKEEP[n] = (inputsEP.LKEEP[n] && !inputsEP.L_QL_RATIO[n])
         inputsEP.LKEEP[n] = (inputsEP.LKEEP[n] && !inputsEP.L_THETA_SQ[n])
     end
+
+    debug_dump_combo_full(inputsEP, inputTJLF, g, f, x_tear_test, QL_flux_ratio,
+                          theta_2_moment, DEP, chi_i)
 
     # Next is writing the wavefunction files themselves:
     wavefunction_buffer = nothing
