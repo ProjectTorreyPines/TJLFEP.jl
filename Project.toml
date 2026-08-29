@@ -57,7 +57,7 @@ SimulationParameters = "2.1.1"
 SlurmClusterManager = "1.1.0"
 SparseArrays = "1.11.0"
 StaticArrays = "1.9.18"
-TJLF = "1.2.12, 1.3"
+TJLF = "2"
 TurbulentTransport = "1.1.4"
 
 [extras]
