@@ -106,3 +106,7 @@ build/**/*_tasks/
 # Sysimage backups and one-off timing probe run dirs
 build/*.so.bak
 build/timing/probe_*/
+
+# Generated sysimage build environments (published to CFS by the batch scripts)
+build/sysimage/env_lean/
+build/sysimage/env_full/
