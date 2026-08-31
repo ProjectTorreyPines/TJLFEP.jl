@@ -25,7 +25,15 @@ set -euo pipefail
 version="${TJLFEP_ENVIRONMENT:?set TJLFEP_ENVIRONMENT (e.g. v2.0.14)}"
 image="localhost/tjlfep:$version"
 out="${SYSIMAGE_OUT:-$PSCRATCH/tjlfep_sysimage_out}"
-scriptdir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Under sbatch this script runs from slurmd's spool dir, so BASH_SOURCE cannot
+# locate gpu-sysimage/. bake_and_publish.sh exports GPU_SYSIMAGE_DIR; a direct
+# sbatch from this directory falls back to SLURM_SUBMIT_DIR.
+scriptdir="${GPU_SYSIMAGE_DIR:-${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}}"
+[[ -f "$scriptdir/build_sysimage_container.jl" ]] || {
+    echo "ERROR: $scriptdir does not contain build_sysimage_container.jl" \
+         "(set GPU_SYSIMAGE_DIR or submit from deploy/container/gpu-sysimage)" >&2
+    exit 1
+}
 
 mkdir -p "$out"
 

@@ -34,7 +34,7 @@ podman-hpc migrate "localhost/tjlfep:$version"
 
 if [[ ! -f "$out/sys_tjlfep_gpu.so" || "${REBAKE:-0}" == "1" ]]; then
     echo "### [2/6] Baking GPU sysimage on an A100 (sbatch --wait, ~1-4 h)"
-    TJLFEP_ENVIRONMENT="$version" SYSIMAGE_OUT="$out" \
+    TJLFEP_ENVIRONMENT="$version" SYSIMAGE_OUT="$out" GPU_SYSIMAGE_DIR="$scriptdir" \
         sbatch --wait --export=ALL "$scriptdir/batch_bake_gpu_sysimage.sh"
 else
     echo "### [2/6] Reusing existing $out/sys_tjlfep_gpu.so (REBAKE=1 to force)"
