@@ -85,11 +85,12 @@ println("### Resolve TJLFEP version to install")
 # General and silently holds TJLFEP back (observed: v2.0.0, which doesn't precompile).
 tjlfep_version = String(lstrip(get(ENV, "TJLFEP_BUILD_VERSION", ""), 'v'))
 if isempty(tjlfep_version)
-    vfile = ""
-    for depot in DEPOT_PATH
-        f = joinpath(depot, "registries", "FuseRegistry", "T", "TJLFEP", "Versions.toml")
-        isfile(f) && (vfile = f; break)
-    end
+    # findfirst, not a bare for-loop assignment: at script top level the loop body is
+    # soft scope, so `vfile = f` would bind a new local and leave the global "" empty
+    vfiles = [joinpath(depot, "registries", "FuseRegistry", "T", "TJLFEP", "Versions.toml")
+              for depot in DEPOT_PATH]
+    vidx = findfirst(isfile, vfiles)
+    vfile = vidx === nothing ? "" : vfiles[vidx]
     @assert !isempty(vfile) "TJLFEP_BUILD_VERSION unset and no FuseRegistry Versions.toml found in DEPOT_PATH"
     tjlfep_version = string(maximum(VersionNumber.(keys(TOML.parsefile(vfile)))))
 end
