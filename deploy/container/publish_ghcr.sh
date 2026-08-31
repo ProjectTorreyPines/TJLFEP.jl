@@ -67,7 +67,16 @@ if ! podman-hpc image exists "$image"; then
 fi
 
 echo "### Logging in to ghcr.io as $user"
-gh auth token | podman-hpc login ghcr.io -u "$user" --password-stdin
+# GHCR_TOKEN_FILE overrides the gh token (e.g. when the gh oauth token lacks
+# the write:packages scope). Otherwise: `gh auth token` first appeared in gh
+# 2.17; older gh (e.g. the NERSC module) exposes the same token via
+# `gh config get`.
+if [[ -n "${GHCR_TOKEN_FILE:-}" ]]; then
+    podman-hpc login ghcr.io -u "$user" --password-stdin < "$GHCR_TOKEN_FILE"
+else
+    { gh auth token 2>/dev/null || gh config get -h github.com oauth_token; } \
+        | podman-hpc login ghcr.io -u "$user" --password-stdin
+fi
 
 # Always log out afterwards so no registry credential lingers on the node.
 trap 'podman-hpc logout ghcr.io >/dev/null 2>&1 || true' EXIT
