@@ -12,7 +12,7 @@
 #SBATCH -A m3739_g
 #SBATCH -q regular
 #SBATCH -N 1
-#SBATCH -t 02:00:00
+#SBATCH -t 04:00:00
 #SBATCH -C gpu
 #SBATCH -J TJLFEP_gpu_gen_sysimg
 #SBATCH -o build_gpu_generic_sysimage_%j.out
