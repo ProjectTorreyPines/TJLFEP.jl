@@ -5,7 +5,7 @@
 #
 # We run a single scan radius (default scan_index=2, ir=7) rather than the full
 # 20-radius scan so the test is feasible as a smoke-level regression. The full
-# SFmin/alpha vector match is validated by the SCAN_N=20 scripts under build/
+# SFmin/alpha vector match is validated by the SCAN_N=20 scripts under dev/verify/
 # (see docs/REPRODUCE_FORTRAN_MATCH.md).
 
 using Test

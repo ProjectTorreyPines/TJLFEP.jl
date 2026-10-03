@@ -43,7 +43,7 @@ begin
 
     t1 = time()
     cd(outdir) do
-        runTHD(dd, rho, OptionsDict; printout = true, saveFiles = true, dir = @__DIR__)
+        runTHD(dd, rho, OptionsDict; printout = true, saveFiles = true, dir = @__DIR__, use_gpu = use_gpu)
     end
     t2 = time()
     make_crit_grad_plots("STRUCT"; dir=outdir)

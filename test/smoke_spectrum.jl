@@ -1,5 +1,4 @@
 # Manual smoke test for process_in=3 (spectrum mode). Not part of runtests.jl.
-ENV["TJLFEP_FILE_ONLY"] = "1"
 using TJLFEP
 
 const CASE = joinpath(@__DIR__, "..", "examples", "DIIID_202017C42_500ms_v3.1")

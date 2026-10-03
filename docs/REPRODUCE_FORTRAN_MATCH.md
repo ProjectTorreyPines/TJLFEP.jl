@@ -27,7 +27,6 @@ julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
 File-based runs (no IMAS/FUSE):
 
 ```bash
-export TJLFEP_FILE_ONLY=1
 export GACODE_DUMP=$PWD/examples/DIIID_202017C42_500ms_v3.1/input.gacode
 ```
 
@@ -67,7 +66,7 @@ Validated production layout: **20 radii on 5 GPU nodes** — `srun -n 20`,
 in one job.
 
 ```bash
-cd build
+cd dev
 sbatch run/batch_run_scan20_5N.sh
 # or the fully-documented, self-contained template (edit CONFIG paths at top):
 sbatch run/submit_tjlfep_gpu_5N_example.sh
@@ -82,8 +81,8 @@ Inputs: `examples/DIIID_202017C42_500ms_v3.1/input.gacode` +
 
 | Step | Command |
 |------|---------|
-| Fortran | `cd build && sbatch verify/batch_debug_nb6_fortran_scan20_10n.sh` |
-| Julia | `cd build && sbatch verify/batch_debug_nb6_julia_scan20_10n.sh` |
+| Fortran | `cd dev && sbatch verify/batch_debug_nb6_fortran_scan20_10n.sh` |
+| Julia | `cd dev && sbatch verify/batch_debug_nb6_julia_scan20_10n.sh` |
 | Compare | `FORTRAN_DIR=fortran_runs/debug_nb6_scan20_10n_<FJOB> JULIA_DIR=debug_out_nb6_scan20_<JJOB>_dist FILE_DIR=fileInput_nb6_scan20_10n_<JJOB> ./verify/compare_debug_nb6_scan20.sh` |
 
 Inputs: `examples/DIIID_202017C42_500ms_v3.1/input_scan20_nb6.TGLFEP`
@@ -94,7 +93,7 @@ Expected agreement at `IR_EXP` radii:
 - SFmin: max relative error ~0.03%
 - α(dn/dr), α(dp/dr): max relative error ~0.5%
 
-Plots: `build/compare_nb6_scan20_plots/` (created by the compare script; gitignored).
+Plots: `dev/compare_nb6_scan20_plots/` (created by the compare script; gitignored).
 
 ## Other verification scripts
 

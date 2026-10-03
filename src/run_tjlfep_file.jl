@@ -491,7 +491,8 @@ EXPRO-derived setup, and runs the scan.
 
 # Keywords
 - `printout::Bool=false`   - also write an `out.TGLFEP` summary file
-- `use_gpu::Bool=false`    - offload eigensolves to CUDA (auto-detected via `pick_device`)
+- `use_gpu=:auto`          - eigensolve device: `:auto` (GPU when CUDA is functional, via
+                             `TJLF.pick_device`), `:gpu` (error if none), `:cpu`, or a `Bool`
 - `parallel::Symbol=:auto` - radial parallel layout
 - `inner::Symbol=:threads` - per-radius backend (`:threads` or `:mps_team`)
 - `team`                   - GPU ids for the MPS team layout
@@ -510,12 +511,12 @@ An IMAS data-dictionary method `runTHD(dd, rho, OptionsDict; ...)` is also
 available when the `TJLFEPIMASExt` extension is loaded (e.g. under FUSE).
 """
 function runTHD(tglfepfilepath::String, mtglffilepath::String, exprofilepath::String;
-                printout::Bool=false, use_gpu::Bool=false, parallel::Symbol=:auto,
+                printout::Bool=false, use_gpu::Union{Bool,Symbol}=:auto, parallel::Symbol=:auto,
                 inner::Symbol=:threads, team::Union{Nothing,AbstractVector{<:Integer}}=nothing,
                 ql_flux_scan::Bool=_ql_flux_scan_env(), solver::Symbol=:grid, refine_rounds::Int=1,
                 nmodes::Int=_nmodes_env(), k_max::Int=_k_max_env())
 
-    # Auto-detect device via TJLF.pick_device(:auto); shadows the use_gpu parameter.
+    use_gpu = _resolve_use_gpu(use_gpu)
     # Thread safety: Threads.@threads runs each iteration in a separate Julia task.
     # CUDA.jl v5 assigns per-task streams, so concurrent GPU calls are stream-isolated.
 
@@ -546,7 +547,8 @@ end
     runTHD_from_gacode(gacode_file, tglfep_file; kwargs...)
 
 Run TJLFEP from `input.gacode` + `input.TGLFEP` only. No `dump.gacode`, `input.MTGLF`,
-or `input.EXPRO` required.
+or `input.EXPRO` required. Keywords as for [`runTHD`](@ref); `use_gpu` defaults to `:auto`
+(GPU when CUDA is functional).
 
 # Example
 ```julia
@@ -562,7 +564,7 @@ function runTHD_from_gacode(
     gacode_file::AbstractString,
     tglfep_file::AbstractString;
     printout::Bool=false,
-    use_gpu::Bool=false,
+    use_gpu::Union{Bool,Symbol}=:auto,
     parallel::Symbol=:auto,
     inner::Symbol=:threads,
     team::Union{Nothing,AbstractVector{<:Integer}}=nothing,
@@ -572,6 +574,7 @@ function runTHD_from_gacode(
     nmodes::Int=_nmodes_env(),
     k_max::Int=_k_max_env(),
 )
+    use_gpu = _resolve_use_gpu(use_gpu)
     Options, profile, expro = preprocess_gacode_inputs(gacode_file, tglfep_file; nmodes=nmodes)
     _apply_runthd_expro_setup!(Options, profile, expro)
     return _runTHD_core!(Options, profile, expro; printout=printout, use_gpu=use_gpu, parallel=parallel,
@@ -678,6 +681,17 @@ function _gacode_alpha_postprocess!(
 end
 
 """
+    _resolve_use_gpu(use_gpu) -> Bool
+
+Device selection shared by the public entry points: a `Bool` passes through; `:auto` picks the
+GPU when CUDA is functional (`TJLF.pick_device(:auto)`), `:gpu` errors if none is available,
+`:cpu` forces the CPU path. Resolved once at the entry point so the internal per-radius code
+keeps a plain `Bool`.
+"""
+_resolve_use_gpu(use_gpu::Bool) = use_gpu
+_resolve_use_gpu(use_gpu::Symbol) = TJLF.pick_device(use_gpu) === :gpu
+
+"""
 Slurm task id (0-based): `SLURM_ARRAY_TASK_ID` for `--array` jobs, else `SLURM_PROCID`
 for multi-task jobs (`srun -n SCAN_N`), else `0`.
 """
@@ -697,7 +711,8 @@ end
 
 Run **one** radius of a `SCAN_N` job (for Slurm `--array=0-(SCAN_N-1)`).
 Writes `task_<scan_index>.jls` under `out_dir` with `sfmin`, `width`, `kymark`, and optional
-`out.scalefactor_r###` when `printout=true`.
+`out.scalefactor_r###` when `printout=true`. `use_gpu` defaults to `:auto` (GPU when CUDA is
+functional); pass `true`/`false`/`:gpu`/`:cpu` to force a device.
 
 Use `finalize_gacode_scan` after all array tasks finish to build α profiles.
 """
@@ -706,7 +721,7 @@ function run_gacode_scan_task(
     tglfep_file::AbstractString,
     scan_index::Integer;
     out_dir::AbstractString=".",
-    use_gpu::Bool=false,
+    use_gpu::Union{Bool,Symbol}=:auto,
     printout::Bool=false,
     inner::Symbol=:threads,
     team::Union{Nothing,AbstractVector{<:Integer}}=nothing,
@@ -716,6 +731,7 @@ function run_gacode_scan_task(
     nmodes::Int=_nmodes_env(),
     k_max::Int=_k_max_env(),
 )
+    use_gpu = _resolve_use_gpu(use_gpu)
     mkpath(out_dir)
     Options, profile, expro = preprocess_gacode_inputs(gacode_file, tglfep_file; nmodes=nmodes)
     _apply_runthd_expro_setup!(Options, profile, expro)

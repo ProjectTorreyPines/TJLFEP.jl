@@ -107,5 +107,5 @@ profile at `N_BASIS=32`) is documented in
 [`docs/AD_SOLVERS_AND_SEARCH_BOUNDS.md`](https://github.com/ProjectTorreyPines/TJLFEP.jl/blob/master/docs/AD_SOLVERS_AND_SEARCH_BOUNDS.md).
 
 Data: `docs/plots/scan20_timing.csv`. Reproduce: grid sweep with
-`build/timing/submit_timing_vs_nbasis.sh`, AD sweep with
-`build/timing/submit_timing_vs_nbasis_ad.sh` (capability 4).
+`dev/timing/submit_timing_vs_nbasis.sh`, AD sweep with
+`dev/timing/submit_timing_vs_nbasis_ad.sh` (capability 4).

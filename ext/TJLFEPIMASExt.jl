@@ -185,12 +185,13 @@ MPS-team SPMD layout (each radius ran on its own GPU with its own MPS team); the
 cross-radius post-processing below is identical to the in-process path.
 """
 function TJLFEP.runTHD(dd::IMAS.dd, rho::AbstractVector{Float64}, OptionsDict::Dict{String, Any};
-                printout::Bool=false, saveFiles::Bool=false, dir::String="ddFiles", use_gpu::Bool=false,
+                printout::Bool=false, saveFiles::Bool=false, dir::String="ddFiles", use_gpu::Union{Bool,Symbol}=:auto,
                 ql_flux_scan::Bool=false, inner::Symbol=:threads, mps_team::Int=0, solver::Symbol=:grid,
                 refine_rounds::Int=1, k_max::Int=TJLFEP._k_max_env(), extend_mode::Union{Nothing,Symbol}=nothing,
                 wide_kdesc::Union{Nothing,Int}=nothing, faithful_confirm::Union{Nothing,Bool}=nothing,
                 precomputed_dir::AbstractString=get(ENV, "TJLFEP_PRECOMPUTED_DIR", ""))
 
+    use_gpu = TJLFEP._resolve_use_gpu(use_gpu)   # :auto -> GPU when CUDA is functional
     Options, profile, extraEP, expro_state = preprocess_imas_inputs(dd, rho, OptionsDict; verbose=printout)
     ni = expro_state.ni
     Ti = expro_state.Ti
@@ -514,12 +515,13 @@ the single-process threaded baseline.
 """
 function TJLFEP.runTHD_dd_radius(dd::IMAS.dd, rho::AbstractVector{Float64},
         OptionsDict::Dict{String, Any}, scan_index::Int;
-        out_dir::AbstractString=".", use_gpu::Bool=false,
+        out_dir::AbstractString=".", use_gpu::Union{Bool,Symbol}=:auto,
         inner::Symbol=:mps_team,
         team::Union{Nothing,AbstractVector{<:Integer}}=nothing,
         ql_flux_scan::Bool=false, printout::Bool=false, solver::Symbol=:grid,
         refine_rounds::Int=1, k_max::Int=TJLFEP._k_max_env(), extend_mode::Union{Nothing,Symbol}=nothing,
         wide_kdesc::Union{Nothing,Int}=nothing, faithful_confirm::Union{Nothing,Bool}=nothing)
+    use_gpu = TJLFEP._resolve_use_gpu(use_gpu)   # :auto -> GPU when CUDA is functional
     Options, profile, _, _ = preprocess_imas_inputs(dd, rho, OptionsDict; verbose=printout)
     1 <= scan_index <= Options.SCAN_N ||
         error("runTHD_dd_radius: scan_index=$scan_index out of range 1:$(Options.SCAN_N)")
