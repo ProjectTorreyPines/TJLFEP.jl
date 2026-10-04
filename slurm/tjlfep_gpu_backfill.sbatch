@@ -76,8 +76,9 @@ TJLFEP_PROBE="${TJLFEP_PROBE:-0}"            # 1 prints per-worker eigensolve co
 
 # ---- Parallel layout ----
 INNER="${INNER:-mps_team}"                   # within-radius parallelism: mps_team | threads.
-                                             #   mps_team is what the published backfill benchmarks used for every solver here;
-                                             #   threads is the lighter choice for SOLVER=ad AD_EXTEND_MODE=only.
+                                             #   Measured on this template (UCP nb32, ad :locate, 2026-10-03): mps_team 8x2 = 1.49 node-h,
+                                             #   threads x2 = 2.72, threads x16 = 2.60 -> keep mps_team for the extended-width solvers;
+                                             #   threads only pays off for the few-eval SOLVER=ad AD_EXTEND_MODE=only (use the 5N template).
 MPS_TEAM="${MPS_TEAM:-8}"                    # MPS worker processes per GPU (use 4 at N_BASIS=48 to fit the node's host RAM)
 JULIA_WORKER_THREADS="${JULIA_WORKER_THREADS:-2}"   # CPU threads per worker; 4 tasks x 8 workers x 2 = 64 cores
 BACKFILL_MODE=1                              # shared claim queue over all radii; tied to this template, do not edit

@@ -44,9 +44,15 @@ spend far longer on the outer radii (that is where the `w<1` locate triggers), s
 pulling the next radius from a queue gives the lowest node-hours, and a 1-node job also
 backfills quickly in the Slurm queue.
 
-`INNER` is set for you: the 5N template pairs `ad` with in-process threads and everything
+`INNER` is set for you: the 5N template pairs `ad :only` with in-process threads and everything
 else with an MPS worker team (`MPS_TEAM=8` processes per GPU); the backfill template uses
-`mps_team` for every solver, which is how the published backfill numbers were measured.
+`mps_team` for every solver. That is not just inherited from the published numbers: measured
+on the backfill template with UCP `N_BASIS=32`, `ad :locate` (2026-10-03), `mps_team` 8x2 took
+1.49 node-hours, `threads` x2 2.72 and `threads` x16 2.60, with `SFmin` agreeing to within 0.3 %
+(the two layouts partition the narrow-width search differently, so the located optimum can
+shift slightly).
+The "`ad` prefers threads" rule holds for the bare `:only` descent, not for the extended-width
+locate, whose many independent narrow-width evaluations do amortize a team.
 
 ## Edit these lines
 
