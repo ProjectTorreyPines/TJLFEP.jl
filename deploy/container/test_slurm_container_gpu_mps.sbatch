@@ -13,7 +13,7 @@
 # whose inner kw-scan is distributed over MPS_TEAM in-container worker
 # processes that all share this task's single GPU (Hyper-Q overlap of the
 # Xgeev eigensolves). This is the containerized analogue of
-# build/common/run_gacode_scan20_mps_task.jl, self-contained on the packaged
+# slurm/common/run_gacode_scan20_mps_task.jl, self-contained on the packaged
 # DIII-D example — no repo checkout needed on the compute node.
 #
 #   TJLFEP_ENVIRONMENT=v2.0.14-gpu sbatch --export=ALL deploy/container/test_slurm_container_gpu_mps.sbatch

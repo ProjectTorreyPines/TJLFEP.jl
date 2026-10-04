@@ -3,7 +3,7 @@
 # Apptainer): one radius of the packaged DIII-D example whose inner kw-scan is
 # distributed over MPS_TEAM local worker processes sharing this task's GPU.
 #
-# Mirrors build/common/run_gacode_scan20_mps_task.jl: workers inherit the MPS
+# Mirrors slurm/common/run_gacode_scan20_mps_task.jl: workers inherit the MPS
 # pipe dir + compat/depot env, get the launcher-selected sysimage when present
 # (-gpu tags; addprocs does NOT propagate --sysimage on its own), and touch
 # the GPU up front so every CUDA context is an MPS client before the scan.

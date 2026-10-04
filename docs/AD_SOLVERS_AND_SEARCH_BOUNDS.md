@@ -43,7 +43,7 @@ leading AE-band growth crosses `γ*` and passes the TGLF-EP keep filters — ove
 (`src/tjlfep_ad_extensions.jl`, exported) and `:truth` is selectable from `mainsub` /
 `run_gacode_scan_task` / the `solver` toggle like `:grid`/`:ad`/`:robust_ad`. The remaining
 experiment-only solvers (`critical_factor_direct`, `critical_factor_ad_escalate`) live in
-`build/ad/direct_solver.jl` and depend on `NLopt` (in `Project.toml` but **not** imported by the
+`dev/ad/direct_solver.jl` and depend on `NLopt` (in `Project.toml` but **not** imported by the
 module, so the production package / sysimage stay NLopt-free).
 
 **`confirm_grid` (opt-in, default `false`).** `critical_factor_robust` can fold the `:confirm`
@@ -405,15 +405,15 @@ and forces the narrow-bump AE search of §4 on every affected radius. The one tr
 `Inf`-bound confirm blow-up) is fixed in `ad93a78`. Beyond that, the remaining cost is the genuine
 narrow-band locate, and further speedup requires **accuracy/speed trade-offs** (reduce `k_descend`,
 loosen the descent tolerance / cap `maxiter`, or use a coarser `nscan` for suppression detection) —
-each trading a small `sfmin` risk for wall time. Reproduce with `build/ad/test_exb_earlystop.jl` +
-`build/ad/batch_test_exb_earlystop.sh` (forced-`γ*` sweep; the script's per-phase `eig:` line prints
+each trading a small `sfmin` risk for wall time. Reproduce with `dev/ad/test_exb_earlystop.jl` +
+`dev/ad/batch_test_exb_earlystop.sh` (forced-`γ*` sweep; the script's per-phase `eig:` line prints
 the §6.2 breakdown).
 
 ---
 
 ## 7. Reproduction
 
-Experiment harnesses (run from `build/`, premium GPU, MPS team=4):
+Experiment harnesses (run from `dev/`, premium GPU, MPS team=4):
 
 | Question | Script | Batch |
 |----------|--------|-------|
@@ -426,15 +426,15 @@ Experiment harnesses (run from `build/`, premium GPU, MPS team=4):
 | IR=95 width-bowl + fine `nbasis` {8..56} (ground truth) | `ad/extbox5_experiment.jl` | `ad/batch_extbox5.sh` |
 | `:truth` protocol validation (locate + separable `nbasis`) | `ad/truth_experiment.jl` | `ad/batch_truth_experiment.sh` |
 
-Solver definitions for the experiment-only methods: `build/ad/direct_solver.jl`. The core `:truth`
+Solver definitions for the experiment-only methods: `dev/ad/direct_solver.jl`. The core `:truth`
 path (`critical_factor_truth` / `critical_factor_triggered` / `adf1`) lives in
 `src/tjlfep_ad_extensions.jl`.
 
 Bounds are set via env (`KY_LO`, mesh arrays in the scripts); `INNER=mps_team MPS_TEAM=4` selects the
 GPU MPS path for the experiments. The **production `:truth` profile** uses `MPS_TEAM=8`
-(`build/timing/batch_scan20_truth.sh`) to match the `:grid` team size.
+(`dev/timing/batch_scan20_truth.sh`) to match the `:grid` team size.
 
-Timing & profile reproduction (run from `build/`, premium GPU):
+Timing & profile reproduction (run from `dev/`, premium GPU):
 - **`:truth` timing-vs-`nbasis` sweep** (5 GPU nodes, `MPS_TEAM=8`): `timing/submit_timing_vs_nbasis_truth.sh`
   (per-`nb` `timing/batch_time_scan20_julia_gpu_truth.sh`). Collect/plot with
   `timing/collect_scan20_timing.jl` + `timing/plot_scan20_timing.sh` (adds the "Julia truth MPS" line).

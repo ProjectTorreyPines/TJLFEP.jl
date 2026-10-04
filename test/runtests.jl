@@ -1,10 +1,10 @@
 # TJLFEP test entrypoint.
 #
-# File-based regression only: we force TJLFEP_FILE_ONLY=1 BEFORE loading TJLFEP so
-# the IMAS/FUSE/TurbulentTransport runtime imports are skipped (see TJLFEP.jl).
-# Run with:  module load julia/1.11.7 && export JULIA_DEPOT_PATH=$PSCRATCH/.julia
-#            julia --project=. -t 8 test/runtests.jl
-get(ENV, "TJLFEP_FILE_ONLY", "0") == "1" || (ENV["TJLFEP_FILE_ONLY"] = "1")
+# File-based regression only: loaded standalone, TJLFEP never pulls in IMAS/FUSE (the IMAS
+# entry points live in the TJLFEPIMASExt package extension, which stays dormant here).
+# Run with:  module load julia/1.11.7
+#            export JULIA_DEPOT_PATH="$HOME/.julia:$PSCRATCH/.julia${JULIA_DEPOT_PATH:+:$JULIA_DEPOT_PATH}"
+#            julia --project=. -t 8 test/runtests.jl      (or Pkg.test())
 
 using Test
 

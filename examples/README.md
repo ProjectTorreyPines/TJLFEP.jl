@@ -1,8 +1,16 @@
 # examples/
 
 Canonical TGLF-EP cases used for verification, validation, and benchmarking.
-Run everything from the repo root with the project active
-(`module load julia/1.11.7 && export JULIA_DEPOT_PATH=$PSCRATCH/.julia`).
+Run everything from the repo root with the project active:
+
+```bash
+module load julia/1.11.7
+export JULIA_DEPOT_PATH="$HOME/.julia:$PSCRATCH/.julia${JULIA_DEPOT_PATH:+:$JULIA_DEPOT_PATH}"   # never clobber ~/.julia
+```
+
+Full radial scans on Slurm (GPU or CPU) use the templates in [`slurm/`](../slurm/README.md),
+which default to the DIII-D case below; point `CASE_DIR`/`TGLFEP_FILE` at `UCP_complete/`
+or your own `input.gacode` + `input.TGLFEP` pair for anything else.
 
 ## DIIID_202017C42_500ms_v3.1/
 
@@ -27,10 +35,25 @@ Case scripts:
 - `compare_fortran_julia.jl`, `diagnose_crit_grad.jl` — compare Julia output dirs
   against the Fortran references (`out.TGLFEP`, `alpha_*_crit.input`).
 - `plotGrads.jl` — critical-gradient plots.
-- `batch_TGLF-EP.sl`, `batchRun.sh`, `submit_sweep.sh` — case run wrappers.
+- `batch_TGLF-EP.sl` — the Fortran `TGLFEP_driver` submit this case was verified against.
 
-Verification and GPU database-generation runs that use this case live in
-`build/` (see `build/README.md`).
+Fortran-vs-Julia verification runs on this case live in `dev/verify/`
+(see `docs/REPRODUCE_FORTRAN_MATCH.md`); production scans use `slurm/`.
+
+## UCP_complete/
+
+Reactor-relevant case (4 thermal ion species + energetic particles) behind the headline
+benchmark in `docs/BENCHMARKS.md`; its per-`ky` eigenmatrix is ~1.7x larger than DIII-D's at
+the same `N_BASIS`, which is where the GPU eigensolver pays off most.
+
+Inputs: `input.gacode`, `input.TGLFEP` (single radius), `input_scan20_nb{6,8,16,32,40,48}.TGLFEP`
+(`SCAN_N=20` scans; nb40/48 exceed stock Fortran TGLF's compile-time basis cap, Julia runs them
+unmodified), `dump.gacode`, `dump.profile`, `Alpha_input`.
+Fortran references: `alpha_dndr_crit.input`, `alpha_dpdr_crit.input`, `batch_TGLF-EP.sl`
+(the 40-node `-n 5000` Fortran submit).
+
+Extended-width solvers on this case need the long wall noted in `slurm/tjlfep_gpu_backfill.sbatch`
+(`:ad :locate` at nb32 ~4 h on one node).
 
 ## ITER/
 
